@@ -57,6 +57,7 @@ static void write_wav_header(FILE *fp, unsigned num_frames)
     fwrite(&data_bytes, 4, 1, fp);
 }
 
+#undef main
 int main(int argc, char **argv)
 {
     const char *infile;

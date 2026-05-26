@@ -6,3 +6,4 @@ wmplay
 *.rsp
 *.wav
 *.log
+.vscode

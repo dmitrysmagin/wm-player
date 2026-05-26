@@ -1,5 +1,6 @@
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
+#include <signal.h>
 #include <stdio.h>
 #include "sdl_audio.h"
 #include "opl3.h"
@@ -13,6 +14,7 @@ static opl3_chip    *g_chip;
 static wm_replayer_t *g_rp;
 static unsigned       g_tick_accum;
 static int            g_song_ended;
+static volatile int   g_stop_requested;
 
 static void opl_write(void *ctx, uint16_t reg, uint8_t val)
 {
@@ -35,6 +37,12 @@ static void callback(void *userdata, uint8_t *stream, int len)
         }
         OPL3_GenerateResampled(g_chip, buf + i * 2);
     }
+}
+
+static void sighandler(int sig)
+{
+    (void)sig;
+    g_stop_requested = 1;
 }
 
 int sdl_play(const wm_file_t *wm)
@@ -68,9 +76,11 @@ int sdl_play(const wm_file_t *wm)
         SDL_Quit();
         return -1;
     }
+    signal(SIGINT, sighandler);
     printf("Playing... Press Ctrl+C to stop\n");
     SDL_PauseAudio(0);
-    SDL_Delay(110000);
+    while (!g_stop_requested && !g_song_ended)
+        SDL_Delay(50);
     SDL_CloseAudio();
     SDL_Quit();
     return 0;
