@@ -362,11 +362,14 @@ static void f8_loop(wm_channel_t *ch, const uint8_t **ptr, const uint8_t *end)
             (*val)--;
         }
         if (*val == 0) {
-            (*ptr)++;
+            // Counter reached zero: skip the signed offset byte and pop the stack
+            (*ptr)++; // consume offset
             ch->f4_depth--;
         } else {
-            int8_t offset = (int8_t)((*ptr)[0]);
-            *ptr = *ptr + offset;
+            // Decremented counter still > 0: jump back by signed offset
+            int8_t offset = (int8_t)(*(*ptr));
+            // Consume the offset byte then apply the signed displacement relative to the byte after the offset
+            *ptr = *ptr + 1 + offset;
         }
     }
 }
