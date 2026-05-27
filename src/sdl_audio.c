@@ -8,7 +8,6 @@
 #include "wm_replayer.h"
 
 #define SAMPLE_RATE 44100
-#define TICK_RATE   200
 
 static opl3_chip    *g_chip;
 static wm_replayer_t *g_rp;
@@ -27,8 +26,9 @@ static void callback(void *userdata, uint8_t *stream, int len)
     int16_t *buf = (int16_t *)stream;
     uint32_t frames = (uint32_t)len / 4;
 
+    unsigned tick_rate = g_rp ? g_rp->tick_rate : 200;
     for (uint32_t i = 0; i < frames; i++) {
-        g_tick_accum += TICK_RATE;
+        g_tick_accum += tick_rate;
         if (g_tick_accum >= SAMPLE_RATE) {
             g_tick_accum -= SAMPLE_RATE;
             if (!g_song_ended)

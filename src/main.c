@@ -8,7 +8,6 @@
 #include "sdl_audio.h"
 
 #define SAMPLE_RATE 44100
-#define TICK_RATE   200
 #define MAX_SECONDS 110
 
 typedef struct {
@@ -63,18 +62,32 @@ int main(int argc, char **argv)
     const char *infile;
     const char *outfile = "output.wav";
     int wav_mode = 0;
+    unsigned max_seconds = MAX_SECONDS;
 
     if (argc < 2) {
         fprintf(stderr, "Usage:\n");
-        fprintf(stderr, "  %s <file.wm>               SDL playback\n", argv[0]);
-        fprintf(stderr, "  %s --wav <file.wm> [.wav]  render to WAV\n", argv[0]);
+        fprintf(stderr, "  %s <file.wm>                         SDL playback\n", argv[0]);
+        fprintf(stderr, "  %s --wav [-t N] <file.wm> [.wav]   render to WAV (N = max seconds, default %u)\n", argv[0], MAX_SECONDS);
         return 1;
     }
 
     int arg = 1;
-    if (strcmp(argv[arg], "--wav") == 0) {
-        wav_mode = 1;
-        arg++;
+    while (arg < argc && argv[arg][0] == '-') {
+        if (strcmp(argv[arg], "--wav") == 0) {
+            wav_mode = 1;
+            arg++;
+        } else if (strcmp(argv[arg], "--max-seconds") == 0 || strcmp(argv[arg], "-t") == 0) {
+            if (arg + 1 >= argc) {
+                fprintf(stderr, "Error: --max-seconds requires a number\n");
+                return 1;
+            }
+            max_seconds = (unsigned)atoi(argv[arg + 1]);
+            if (max_seconds == 0) max_seconds = 30;
+            arg += 2;
+        } else {
+            fprintf(stderr, "Unknown option: %s\n", argv[arg]);
+            return 1;
+        }
     }
     if (arg >= argc) {
         fprintf(stderr, "Missing input file\n");
@@ -114,30 +127,49 @@ int main(int argc, char **argv)
 
         printf("Rendering to '%s'...\n", outfile);
 
-        unsigned max_ticks = TICK_RATE * MAX_SECONDS;
-        unsigned duration_samples = max_ticks * (SAMPLE_RATE / TICK_RATE + 1) + SAMPLE_RATE;
-        int16_t *outbuf = (int16_t *)malloc(duration_samples * 2 * sizeof(int16_t));
+        unsigned max_samples = SAMPLE_RATE * max_seconds;
+        int16_t *outbuf = (int16_t *)malloc(max_samples * 2 * sizeof(int16_t));
         if (!outbuf) { wm_unload(&wm); return 1; }
 
         unsigned buf_pos = 0;
         unsigned ticks_done = 0;
         int song_ended = 0;
+        unsigned decay_frames = SAMPLE_RATE; /* 1 second of reverb tail */
 
-        for (unsigned tick = 0; tick < max_ticks; tick++) {
-            pc.current_tick = tick;
-            if (!song_ended && !wm_replayer_tick(&pc.rp)) {
-                printf("  Song ended at tick %u\n", tick);
-                song_ended = 1;
+        while (buf_pos < max_samples) {
+            unsigned cur_rate = pc.rp.tick_rate ? pc.rp.tick_rate : 200;
+
+            if (!song_ended) {
+                pc.current_tick = ticks_done;
+                if (!wm_replayer_tick(&pc.rp)) {
+                    printf("  Song ended at tick %u\n", ticks_done);
+                    song_ended = 1;
+                }
+            } else if (decay_frames == 0) {
+                break;
             }
+
+            /* Accumulate and drain samples for one logical tick */
             pc.tick_sub += SAMPLE_RATE;
-            unsigned nsamp = pc.tick_sub / TICK_RATE;
-            pc.tick_sub -= nsamp * TICK_RATE;
-            if (buf_pos + nsamp > duration_samples) break;
+            unsigned nsamp = pc.tick_sub / cur_rate;
+            pc.tick_sub -= nsamp * cur_rate;
+
+            if (buf_pos + nsamp > max_samples)
+                nsamp = max_samples - buf_pos;
+
             OPL3_GenerateStream(&pc.chip, outbuf + buf_pos * 2, nsamp);
             buf_pos += nsamp;
             ticks_done++;
-            if (tick % (TICK_RATE / 4) == 0) {
-                printf("  %u%%\r", (unsigned)(tick * 100 / max_ticks));
+
+            if (song_ended) {
+                if (decay_frames >= nsamp)
+                    decay_frames -= nsamp;
+                else
+                    break;
+            }
+
+            if (ticks_done % (cur_rate / 4) == 0) {
+                printf("  %u ticks\r", ticks_done);
                 fflush(stdout);
             }
         }

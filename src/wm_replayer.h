@@ -64,6 +64,7 @@ typedef struct {
     wm_channel_t channels[6];
     uint32_t current_tick;
     uint32_t tempo;
+    uint16_t tick_rate;
 
     wm_inst_entry_t *insts;
     int num_insts;

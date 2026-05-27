@@ -212,7 +212,10 @@ static void apply_frequency(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
 static void meta_set_tempo(wm_replayer_t *rp, const uint8_t **ptr, const uint8_t *end)
 {
     int v = rd_byte(ptr, end) | (rd_byte(ptr, end) << 8);
-    if (v > 0) rp->tempo = (uint16_t)v;
+    if (v > 0) {
+        rp->tempo = (uint16_t)v;
+        rp->tick_rate = (uint16_t)v;
+    }
 }
 
 static void meta_set_ties_factor(wm_channel_t *ch, const uint8_t **ptr, const uint8_t *end)
@@ -327,7 +330,7 @@ static void f4_push(wm_channel_t *ch, const uint8_t **ptr, const uint8_t *end)
     uint8_t val = rd_byte(ptr, end);
     if (ch->f4_depth < 15) {
         if (ch->f4_depth == 0 && ch->outer_loop_remain == 0) {
-            ch->outer_loop_remain = val + 4;  /* TEMP: extra repeats */
+            ch->outer_loop_remain = val;
         }
         ch->f4_depth++;
         ch->f4_params[ch->f4_depth * 2] = val;
@@ -407,6 +410,7 @@ void wm_replayer_init(wm_replayer_t *rp, opl_write_fn fn, void *ctx)
     rp->opl_write = fn;
     rp->opl_ctx = ctx;
     rp->tempo = 120;
+    rp->tick_rate = 200;
 }
 
 void wm_replayer_load(wm_replayer_t *rp, const wm_file_t *wm)
