@@ -42,8 +42,8 @@ static const uint8_t ch_bank[] = {0,0,0,1,1,1};
 static const uint8_t ch_slot_id[] = {0,1,2,0,1,2};
 
 /* Per-slot init C register values (from opl_init.inc) */
-static const uint8_t c_base_bank0[] = {0xF0, 0x5E, 0xF0, 0xF1, 0x5F, 0xF0, 0x42, 0x11, 0xC0};
-static const uint8_t c_base_bank1[] = {0xFE, 0xFE, 0xA0, 0xFF, 0xFF, 0xA0, 0x42, 0x11, 0xCC};
+static const uint8_t c_base_bank0[] = {0xF0, 0xFE, 0x5E, 0xF1, 0xFF, 0x5F, 0x42, 0x11, 0xC0};
+static const uint8_t c_base_bank1[] = {0xFE, 0xAE, 0xFF, 0xFF, 0xAF, 0xFE, 0x42, 0x11, 0xCC};
 
 /* Operator base registers */
 static const uint8_t op_base[4] = {0x20, 0x23, 0x28, 0x2B};
@@ -131,9 +131,15 @@ static void apply_channel_c(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
     uint8_t delta = (flags >> 1) & 0x0E;
     uint8_t skip_ties = (ch->flags & 0x04) ? 0 : 1;
     uint16_t c_reg1 = (bank << 8) | (0xC0 + slot);
-    rp->opl_write(rp->opl_ctx, c_reg1, c_base[slot] | delta | skip_ties);
     uint16_t c_reg2 = (bank << 8) | (0xC3 + slot);
-    rp->opl_write(rp->opl_ctx, c_reg2, c_base[slot + 3] | delta | (1 - skip_ties));
+    uint8_t val1 = c_base[slot] | delta;
+    uint8_t val2 = c_base[slot + 3] | delta;
+    if (skip_ties) {
+        val1 ^= 1;
+        val2 ^= 1;
+    }
+    rp->opl_write(rp->opl_ctx, c_reg1, val1);
+    rp->opl_write(rp->opl_ctx, c_reg2, val2);
 }
 
 static void apply_volume(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
@@ -159,7 +165,13 @@ static void apply_volume(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
 static void channel_note_off(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
 {
     if (!(ch->flags & 0x02)) return;
-    ch->flags &= ~0x02;
+    ch->flags &= ~(0x02 | 0x04);
+    uint8_t bank = ch_bank[asm_ch];
+    uint8_t slot = ch_slot_id[asm_ch];
+    uint8_t nuked_ch = asm_to_nuked_ch[asm_ch];
+    uint16_t b_reg = 0xB0 + (nuked_ch % 9);
+    if (bank) b_reg |= 0x0100;
+    rp->opl_write(rp->opl_ctx, b_reg, ch->b_reg_val);
 }
 
 /* ----------------------------------------------------------------- */
@@ -197,6 +209,7 @@ static void apply_frequency(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
     if (bank) { a_reg |= 0x0100; b_reg |= 0x0100; }
     rp->opl_write(rp->opl_ctx, a_reg, (uint8_t)(bx & 0xFF));
     uint8_t al = (uint8_t)((bx >> 8) & 0x03) | (uint8_t)((cl & 7) << 2);
+    ch->b_reg_val = al;
     if (ch->flags & 0x01) al |= 0x20;
     rp->opl_write(rp->opl_ctx, b_reg, al & ~0x20);
     rp->opl_write(rp->opl_ctx, b_reg, al);

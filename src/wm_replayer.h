@@ -50,6 +50,7 @@ typedef struct {
     /* frequency */
     uint16_t freq_raw;
     int16_t  pitch_wheel;
+    uint8_t  b_reg_val;
 } wm_channel_t;
 
 #define WM_INST_REGS 20
