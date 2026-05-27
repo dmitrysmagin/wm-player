@@ -482,34 +482,93 @@ void wm_replayer_reset(wm_replayer_t *rp)
 static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
 {
     if (!(ch->flags & 0x80)) return 0;
-    if (ch->stream >= ch->stream_end) return 0;
 
     const uint8_t **ptr = &ch->stream;
     const uint8_t *end = ch->stream_end;
 
-    for (int limit = 0; limit < 30; limit++) {
-        if (*ptr >= end) {
-            if (ch->f4_depth > 0) {
-                if (ch->outer_loop_remain > 1) {
-                    ch->outer_loop_remain--;
-                    ch->f4_depth = 0;
-                    memset(ch->f4_params, 0, sizeof(ch->f4_params));
-                    *ptr = ch->stream_start;
-                    continue;
-                }
-            }
+    /* Handle end of stream with possible outer loop restart */
+    if (*ptr >= end) {
+        if (ch->f4_depth > 0 && ch->outer_loop_remain > 1) {
+            ch->outer_loop_remain--;
+            ch->f4_depth = 0;
+            memset(ch->f4_params, 0, sizeof(ch->f4_params));
+            *ptr = ch->stream_start;
+        } else {
             ch->flags &= ~0x80;
             return 0;
         }
-        uint8_t cmd = rd_byte(ptr, end);
+    }
 
-        /* ---- cmd == 0x00: NOP ---- */
-        if (cmd == 0x00) continue;
+    uint8_t cmd = rd_byte(ptr, end);
 
-        /* ---- cmd < 0x80: note-on with explicit duration ---- */
-        if (cmd < 0x80) {
-            ch->note = cmd;
+    /* ---- cmd == 0x00: NOP ---- */
+    if (cmd == 0x00) return 1;
+
+    /* ---- cmd < 0x80: note-on with explicit duration ---- */
+    if (cmd < 0x80) {
+        ch->note = cmd;
+        uint8_t dur = rd_byte(ptr, end);
+        ch->wait_remain = dur;
+        if (ch->flags & 0x04) {
+            ch->ties_remain = dur;
+        } else {
+            int ties = (int)dur - ((int)dur * (int)ch->ties_factor / 8);
+            if (ties < 1) ties = 1;
+            ch->ties_remain = (uint8_t)ties;
+        }
+        if (!(ch->flags & 0x08))
+            load_instrument(rp, ch, asm_ch, ch->inst_id);
+        calc_frequency(rp, ch, asm_ch);
+        ch->flags |= 0x01;
+        apply_frequency(rp, ch, asm_ch);
+        apply_channel_c(rp, ch, asm_ch);
+        return 1;
+    }
+
+    /* ---- meta commands 0x80-0x8F (per ASM binary decode) ---- */
+    if (cmd >= 0x80 && cmd <= 0x8F) {
+        switch (cmd) {
+        case 0x80: rd_byte(ptr, end);                      break; /* CONSUME 1 */
+        case 0x81: ch->inst_id = rd_byte(ptr, end); ch->flags &= ~0x08; break;
+        case 0x82:                                           break; /* IGNORE */
+        case 0x83: {
+            ch->flags |= 0x04;
+            ch->note = rd_byte(ptr, end);
             uint8_t dur = rd_byte(ptr, end);
+            ch->wait_remain = dur;
+            ch->ties_remain = dur;
+            if (!(ch->flags & 0x08))
+                load_instrument(rp, ch, asm_ch, ch->inst_id);
+            calc_frequency(rp, ch, asm_ch);
+            ch->flags |= 0x01;
+            apply_frequency(rp, ch, asm_ch);
+            apply_channel_c(rp, ch, asm_ch);
+            return 1;
+        }
+        case 0x84: meta_set_tempo(rp, ptr, end);             break;
+        case 0x85: meta_set_ties_factor(ch, ptr, end);       break;
+        case 0x86:                                           break; /* IGNORE */
+        case 0x87: meta_set_volume(rp, ch, asm_ch, ptr, end); break;
+        case 0x88: rd_byte(ptr, end); /* global 0x9E9 */     break;
+        case 0x89: meta_set_pan(rp, ch, asm_ch, ptr, end);   break;
+        case 0x8A: meta_set_expression(rp, ch, asm_ch, ptr, end); break;
+        case 0x8B: ch->data_word = (uint16_t)rd_word(ptr, end); break;
+        case 0x8C: meta_expression_inc(rp, ch, asm_ch);      break;
+        case 0x8D: meta_expression_dec(rp, ch, asm_ch);      break;
+        case 0x8E: meta_volume_inc(rp, ch, asm_ch);          break;
+        case 0x8F: meta_volume_dec(rp, ch, asm_ch);          break;
+        default: break;
+        }
+        return 1;
+    }
+    /* ---- sub-commands 0x90-0x9F ---- */
+    if (cmd >= 0x90 && cmd <= 0x9F) {
+        switch (cmd) {
+        case 0x90: {
+            int note_num = rd_byte(ptr, end);
+            rd_byte(ptr, end);
+            uint8_t dur = rd_byte(ptr, end);
+            ch->note = (uint8_t)note_num;
             ch->wait_remain = dur;
             if (ch->flags & 0x04) {
                 ch->ties_remain = dur;
@@ -526,102 +585,45 @@ static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
             apply_channel_c(rp, ch, asm_ch);
             return 1;
         }
-
-        /* ---- meta commands 0x80-0x8F (per ASM binary decode) ---- */
-        if (cmd >= 0x80 && cmd <= 0x8F) {
-            switch (cmd) {
-            case 0x80: rd_byte(ptr, end);                      break; /* CONSUME 1 */
-            case 0x81: ch->inst_id = rd_byte(ptr, end); ch->flags &= ~0x08; break;
-            case 0x82:                                           break; /* IGNORE */
-            case 0x83: {
-                ch->flags |= 0x04;
-                ch->note = rd_byte(ptr, end);
-                uint8_t dur = rd_byte(ptr, end);
-                ch->wait_remain = dur;
-                ch->ties_remain = dur;
-                if (!(ch->flags & 0x08))
-                    load_instrument(rp, ch, asm_ch, ch->inst_id);
-                calc_frequency(rp, ch, asm_ch);
-                ch->flags |= 0x01;
-                apply_frequency(rp, ch, asm_ch);
-                apply_channel_c(rp, ch, asm_ch);
-                return 1;
-            }
-            case 0x84: meta_set_tempo(rp, ptr, end);             break;
-            case 0x85: meta_set_ties_factor(ch, ptr, end);       break;
-            case 0x86:                                           break; /* IGNORE */
-            case 0x87: meta_set_volume(rp, ch, asm_ch, ptr, end); break;
-            case 0x88: rd_byte(ptr, end); /* global 0x9E9 */     break;
-            case 0x89: meta_set_pan(rp, ch, asm_ch, ptr, end);   break;
-            case 0x8A: meta_set_expression(rp, ch, asm_ch, ptr, end); break;
-            case 0x8B: ch->data_word = (uint16_t)rd_word(ptr, end); break;
-            case 0x8C: meta_expression_inc(rp, ch, asm_ch);      break;
-            case 0x8D: meta_expression_dec(rp, ch, asm_ch);      break;
-            case 0x8E: meta_volume_inc(rp, ch, asm_ch);          break;
-            case 0x8F: meta_volume_dec(rp, ch, asm_ch);          break;
-            default: break;
-            }
+        case 0x91:
+            rd_byte(ptr, end); rd_byte(ptr, end);
+            rd_byte(ptr, end); rd_byte(ptr, end);
+            break;
+        case 0x92: break;
+        case 0x93: break;
+        case 0x94: rd_byte(ptr, end); break;
+        case 0x95: rd_byte(ptr, end); break;
+        default: break;
         }
-        /* ---- sub-commands 0x90-0x9F ---- */
-        else if (cmd >= 0x90 && cmd <= 0x9F) {
-            switch (cmd) {
-            case 0x90: {
-                int note_num = rd_byte(ptr, end);
-                rd_byte(ptr, end);
-                uint8_t dur = rd_byte(ptr, end);
-                ch->note = (uint8_t)note_num;
-                ch->wait_remain = dur;
-                if (ch->flags & 0x04) {
-                    ch->ties_remain = dur;
-                } else {
-                    int ties = (int)dur - ((int)dur * (int)ch->ties_factor / 8);
-                    if (ties < 1) ties = 1;
-                    ch->ties_remain = (uint8_t)ties;
-                }
-                if (!(ch->flags & 0x08))
-                    load_instrument(rp, ch, asm_ch, ch->inst_id);
-                calc_frequency(rp, ch, asm_ch);
-                ch->flags |= 0x01;
-                apply_frequency(rp, ch, asm_ch);
-                apply_channel_c(rp, ch, asm_ch);
-                return 1;
-            }
-            case 0x91:
-                rd_byte(ptr, end); rd_byte(ptr, end);
-                rd_byte(ptr, end); rd_byte(ptr, end);
-                break;
-            case 0x92: break;
-            case 0x93: break;
-            case 0x94: rd_byte(ptr, end); break;
-            case 0x95: rd_byte(ptr, end); break;
-            default: break;
-            }
-        }
-        /* ---- flow/loop commands 0xF0-0xFF ---- */
-        else if (cmd >= 0xF0) {
-            switch (cmd) {
-            case 0xF0: loop_end_track(rp, ch, asm_ch, ptr, end); return 0;
-            case 0xF1: loop_start(ch, ptr, end); break;
-            case 0xF2: loop_repeat(rp, ch, asm_ch, ptr, end); break;
-            case 0xF3: rd_byte(ptr, end); rd_word(ptr, end); break;
-            case 0xF4: f4_push(ch, ptr, end); break;
-            case 0xF5: f5_skip(ch, ptr, end); break;
-            case 0xF6: rd_byte(ptr, end); break;
-            case 0xF7: loop_end(rp, ch, asm_ch, ptr, end); break;
-            case 0xF8: f8_loop(ch, ptr, end); break;
-            case 0xF9: loop_write_raw(rp, ch, asm_ch, ptr, end); break;
-            default: break;
-            }
-        }
-        /* ---- raw OPL3 register writes 0xA0-0xEF ---- */
-        else if (cmd >= 0xA0) {
-            uint8_t val = rd_byte(ptr, end);
-            uint8_t bank = ch_bank[asm_ch];
-            uint16_t reg = cmd;
-            if (bank) reg |= 0x100;
-            rp->opl_write(rp->opl_ctx, reg, val);
-        }
+        return 1;
     }
+    /* ---- flow/loop commands 0xF0-0xFF ---- */
+    if (cmd >= 0xF0) {
+        switch (cmd) {
+        case 0xF0: loop_end_track(rp, ch, asm_ch, ptr, end); return 0;
+        case 0xF1: loop_start(ch, ptr, end); break;
+        case 0xF2: loop_repeat(rp, ch, asm_ch, ptr, end); break;
+        case 0xF3: rd_byte(ptr, end); rd_word(ptr, end); break;
+        case 0xF4: f4_push(ch, ptr, end); break;
+        case 0xF5: f5_skip(ch, ptr, end); break;
+        case 0xF6: rd_byte(ptr, end); break;
+        case 0xF7: loop_end(rp, ch, asm_ch, ptr, end); break;
+        case 0xF8: f8_loop(ch, ptr, end); break;
+        case 0xF9: loop_write_raw(rp, ch, asm_ch, ptr, end); break;
+        default: break;
+        }
+        return 1;
+    }
+    /* ---- raw OPL3 register writes 0xA0-0xEF ---- */
+    if (cmd >= 0xA0) {
+        uint8_t val = rd_byte(ptr, end);
+        uint8_t bank = ch_bank[asm_ch];
+        uint16_t reg = cmd;
+        if (bank) reg |= 0x100;
+        rp->opl_write(rp->opl_ctx, reg, val);
+        return 1;
+    }
+
     return 1;
 }
 
