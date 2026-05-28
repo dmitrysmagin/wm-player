@@ -11,23 +11,33 @@
 /* CS:0x103).  These are phase-increment values; the replayer        */
 /* normalizes to fnum+block by shifting right until < 0x400.         */
 /* ----------------------------------------------------------------- */
-static const uint16_t asm_freq_tab[128] = {
-    0x0159,0x016D,0x0183,0x019A,0x01B3,0x01CC,0x01E7,0x0204,
-    0x0223,0x0244,0x0266,0x028B,0x02B2,0x02DA,0x0307,0x0333,
-    0x0366,0x0398,0x03CF,0x0409,0x0446,0x0487,0x04CC,0x0516,
-    0x0565,0x05B4,0x060D,0x0667,0x06CB,0x072F,0x079E,0x0812,
-    0x088B,0x090F,0x0998,0x0A2B,0x0AC9,0x0B68,0x0C1B,0x0CCE,
-    0x0D96,0x0E5E,0x0F3C,0x1024,0x1116,0x121E,0x1330,0x1457,
-    0x1593,0x16CF,0x1836,0x199C,0x1B2C,0x1CBD,0x1E78,0x2047,
-    0x222C,0x243B,0x265F,0x28AE,0x2B26,0x2D9E,0x306B,0x3338,
-    0x3659,0x397A,0x3CEF,0x408F,0x4458,0x4876,0x4CBF,0x515B,
-    0x564C,0x5B3D,0x60D6,0x6670,0x6CB2,0x72F4,0x79DE,0x811D,
-    0x88B1,0x90ED,0x997D,0xA2B6,0xAC98,0xB679,0xC1AC,0xCCDF,
-    0xD963,0xE5E7,0xF3BD,0x1E60,0xEB06,0xBBCE,0x8D40,0x5E34,
-    0x2E60,0xFDF6,0xCCDF,0x9AE0,0x68DB,0x359E,0x0209,0xCDFC,
-    0x9961,0x6416,0x2E0D,0xF72A,0xBF5E,0x869B,0x4CCD,0x11E4,
-    0xD5D7,0x9894,0x5A0D,0x1A2F,0xD8F0,0x9645,0x521E,0x0C74,
-    0xC539,0x7C65,0x31EC,0xE5C7,0x97E6,0x4840,0xF6D1,0xA38B,
+static const uint16_t asm_freq_tab[] = {
+    /*   0 –   7 */ 0x0159,0x016D,0x0183,0x019A,0x01B3,0x01CC,0x01E7,0x0204,
+    /*   8 –  15 */ 0x0223,0x0244,0x0266,0x028B,0x02B2,0x02DA,0x0307,0x0333,
+    /*  16 –  23 */ 0x0366,0x0398,0x03CF,0x0409,0x0446,0x0487,0x04CC,0x0516,
+    /*  24 –  31 */ 0x0565,0x05B4,0x060D,0x0667,0x06CB,0x072F,0x079E,0x0812,
+    /*  32 –  39 */ 0x088B,0x090F,0x0998,0x0A2B,0x0AC9,0x0B68,0x0C1B,0x0CCE,
+    /*  40 –  47 */ 0x0D96,0x0E5E,0x0F3C,0x1024,0x1116,0x121E,0x1330,0x1457,
+    /*  48 –  55 */ 0x1593,0x16CF,0x1836,0x199C,0x1B2C,0x1CBD,0x1E78,0x2047,
+    /*  56 –  63 */ 0x222C,0x243B,0x265F,0x28AE,0x2B26,0x2D9E,0x306B,0x3338,
+    /*  64 –  71 */ 0x3659,0x397A,0x3CEF,0x408F,0x4458,0x4876,0x4CBF,0x515B,
+    /*  72 –  79 */ 0x564C,0x5B3D,0x60D6,0x6670,0x6CB2,0x72F4,0x79DE,0x811D,
+    /*  80 –  87 */ 0x88B1,0x90ED,0x997D,0xA2B6,0xAC98,0xB679,0xC1AC,0xCCDF,
+    /*  88 –  92 */ 0xD963,0xE5E7,0xF3BD,0x1E60,0xEB06,
+    /*  93 – 159 */ 0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,
+                    0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,
+                    0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,
+                    0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,
+                    0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,
+                    0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,
+                    0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,
+                    0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,0xEB00,
+                    0xEB00,0xEB00,0xEB00,0xEB00,
+                    0xEB00,0xEB00,0xEB00,0xEB00,
+                    0xEB00,0xEB00,0xEB00,0xEB00,
+                    0xEB00,0xEB00,0xEB00,0xEB00,
+                    0xEB00,0xEB00,0xEB00,0xEB00,
+                    0xEB00,0xEB00,0xEB00,0xEB00,
 };
 
 /* ASM volume attenuation table at 0x410: volume 0-15 */
@@ -41,13 +51,60 @@ static const uint8_t asm_to_nuked_ch[] = {0,1,2,9,10,11};
 static const uint8_t ch_bank[] = {0,0,0,1,1,1};
 static const uint8_t ch_slot_id[] = {0,1,2,0,1,2};
 
-/* Per-slot init C register values (from opl_init.inc) */
-static const uint8_t c_base_bank0[] = {0xF0, 0xFE, 0x5E, 0xF1, 0xFF, 0x5F, 0x42, 0x11, 0xC0};
-static const uint8_t c_base_bank1[] = {0xFE, 0xAE, 0xFF, 0xFF, 0xAF, 0xFE, 0x42, 0x11, 0xCC};
-
 /* Operator base registers */
 static const uint8_t op_base[4] = {0x20, 0x23, 0x28, 0x2B};
 static const uint16_t reg_grp[5] = {0x20, 0x40, 0x60, 0x80, 0xE0};
+
+/* Debug counters */
+static int apply_count[6] = {0};
+void wm_apply_counts(int *dst) { memcpy(dst, apply_count, sizeof(apply_count)); }
+
+int f8_iterations[6] = {0};
+int f8_calls[6] = {0};
+int f4_push_count[6] = {0};
+
+/* ----------------------------------------------------------------- */
+/* Tracked OPL3 write — monitors 4-op connect register bits and      */
+/* NV register (0x104/0x105) to keep four_op_slave[] up-to-date.     */
+/* Also logs all writes for DRO comparison.                          */
+/* ----------------------------------------------------------------- */
+static void opl_tracked_write(wm_replayer_t *rp, uint16_t reg, uint8_t val)
+{
+    uint8_t bank = (uint8_t)(reg >> 8) & 1;
+    uint8_t r = (uint8_t)(reg & 0xFF);
+
+    /* Track 4-op connect bits: C0-C8 */
+    if (r >= 0xC0 && r <= 0xC8) {
+        int ch_idx = r & 0x0F;
+        if (ch_idx < 9) {
+            int abs_ch = ch_idx + (bank ? 9 : 0);
+            rp->four_op_conn[abs_ch] = val;
+            /* Recompute four_op_slave status */
+            rp->four_op_slave[abs_ch] = 0;
+            if ((val & 0x10) && rp->four_op_enabled) {
+                /* Odd channels in 4-op pairs are slaves */
+                if (abs_ch & 1)
+                    rp->four_op_slave[abs_ch] = 1;
+            }
+        }
+    }
+
+    /* Track NV register (0x104 / 0x105) */
+    if (r == 0x04 && bank == 1) {
+        rp->four_op_nv[bank - 1] = val;
+        rp->four_op_enabled = (rp->four_op_nv[0] | rp->four_op_nv[1]) != 0;
+        /* Recompute all four_op_slave status */
+        for (int i = 0; i < 18; i++) {
+            rp->four_op_slave[i] = 0;
+            if ((rp->four_op_conn[i] & 0x10) && rp->four_op_enabled) {
+                if (i & 1)
+                    rp->four_op_slave[i] = 1;
+            }
+        }
+    }
+
+    rp->opl_write(rp->opl_ctx, reg, val);
+}
 
 static uint16_t opl_reg(int asm_ch, int op, int grp)
 {
@@ -95,8 +152,13 @@ static int parse_instruments(wm_replayer_t *rp, const uint8_t *data, size_t len)
     return n;
 }
 
+static void apply_channel_c(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch);
+
+int load_counts[6] = {0};
+
 static void load_instrument(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch, uint8_t inst_id)
 {
+    load_counts[asm_ch]++;
     const uint8_t *regs = NULL;
     uint8_t flags = 0;
     for (int i = 0; i < rp->num_insts; i++) {
@@ -114,32 +176,58 @@ static void load_instrument(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch, uin
         for (int grp = 0; grp < 5; grp++) {
             int byte_idx = op * 5 + grp;
             uint16_t reg = opl_reg(asm_ch, op, grp);
-            rp->opl_write(rp->opl_ctx, reg, regs[byte_idx]);
+            opl_tracked_write(rp, reg, regs[byte_idx]);
         }
         ch->op_tl[op] = regs[op * 5 + 1];
     }
+    ch->inst_flags = flags;
+    ch->c_val_saved = flags;
+    apply_channel_c(rp, ch, asm_ch);
     ch->flags |= 0x08;
 }
 
-/* Write channel C registers based on instrument flags and skip-ties state */
+/* XLAT table from MUSICV_2.COM at file offset 0x4B7 (runtime 0x5B7) */
+static const uint8_t c_xlat_table[256] = {
+    0x00, 0x50, 0xA0, 0xF0, 0x88, 0x44, 0x3C, 0x8B,
+    0x1E, 0xE4, 0x09, 0xBA, 0x1E, 0x00, 0xB9, 0x40,
+};
+
+/* Write channel C registers using ASM formula (MUSICV_2.COM 0x64B)
+   Writes 0xC0+slot and 0xC3+slot for the channel pair */
 static void apply_channel_c(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
 {
     uint8_t bank = ch_bank[asm_ch];
     uint8_t slot = ch_slot_id[asm_ch];
-    const uint8_t *c_base = bank ? c_base_bank1 : c_base_bank0;
     uint8_t flags = ch->inst_flags;
-    uint8_t delta = (flags >> 1) & 0x0E;
-    uint8_t skip_ties = (ch->flags & 0x04) ? 0 : 1;
+
     uint16_t c_reg1 = (bank << 8) | (0xC0 + slot);
     uint16_t c_reg2 = (bank << 8) | (0xC3 + slot);
-    uint8_t val1 = c_base[slot] | delta;
-    uint8_t val2 = c_base[slot + 3] | delta;
-    if (skip_ties) {
-        val1 ^= 1;
-        val2 ^= 1;
+
+    /* ASM formula at 0x64B:
+       AL = [si+0x3E] -> xlat table
+       CL = flags
+       CL = (CL >> 1) | ((CL & 1) << 15)            ; ROR CX,1
+       CH = (CL >> 8) & 1                             ; original flags bit 0
+       CL_lo = CL & 0xFF                              ; flags >> 1
+       CL = CL_lo | translated                        ; combined
+       C0 = CL
+       C3 = (CL & 0xFE) | CH                         ; bit 0 from flags bit 0 */
+    uint8_t xlat_idx = ch->c_xlat_index;
+    uint8_t translated = c_xlat_table[xlat_idx & 0x0F];
+    uint8_t cl_lo = (flags >> 1);
+    uint8_t cl = cl_lo | translated;
+    uint8_t ch_bit = (flags & 1);
+    uint8_t c0_val = cl;
+    uint8_t c3_val = (cl & 0xFE) | ch_bit;
+
+    if (ch->flags & 0x04) {
+        /* tied notes: override with delta = 0x0E (max feedback) */
+        c0_val = (c0_val & 0xF1) | 0x0E;
+        c3_val = (c3_val & 0xF1) | 0x0E;
     }
-    rp->opl_write(rp->opl_ctx, c_reg1, val1);
-    rp->opl_write(rp->opl_ctx, c_reg2, val2);
+
+    opl_tracked_write(rp, c_reg1, c0_val);
+    opl_tracked_write(rp, c_reg2, c3_val);
 }
 
 static void apply_volume(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
@@ -155,7 +243,7 @@ static void apply_volume(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
         uint8_t tl_val = ch->op_tl[op];
         int new_tl = (tl_val & 0x3F) + total_atten;
         if (new_tl > 63) new_tl = 63;
-        rp->opl_write(rp->opl_ctx, reg, (uint8_t)((tl_val & 0xC0) | (uint8_t)new_tl));
+        opl_tracked_write(rp, reg, (uint8_t)((tl_val & 0xC0) | (uint8_t)new_tl));
     }
 }
 
@@ -164,14 +252,16 @@ static void apply_volume(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
 /* ----------------------------------------------------------------- */
 static void channel_note_off(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
 {
-    if (!(ch->flags & 0x02)) return;
-    ch->flags &= ~(0x02 | 0x04);
+    if (!(ch->flags & 0x01)) return;
+    ch->flags &= ~(0x01 | 0x02 | 0x04);
     uint8_t bank = ch_bank[asm_ch];
-    uint8_t slot = ch_slot_id[asm_ch];
     uint8_t nuked_ch = asm_to_nuked_ch[asm_ch];
-    uint16_t b_reg = 0xB0 + (nuked_ch % 9);
-    if (bank) b_reg |= 0x0100;
-    rp->opl_write(rp->opl_ctx, b_reg, ch->b_reg_val);
+    uint8_t ch_in_bank = nuked_ch % 9;
+    uint16_t a_reg = 0xA0 + ch_in_bank;
+    uint16_t b_reg = 0xB0 + ch_in_bank;
+    if (bank) { a_reg |= 0x0100; b_reg |= 0x0100; }
+    opl_tracked_write(rp, a_reg, ch->a_reg_val);
+    opl_tracked_write(rp, b_reg, ch->b_reg_val);
 }
 
 /* ----------------------------------------------------------------- */
@@ -179,7 +269,7 @@ static void channel_note_off(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
 /* ----------------------------------------------------------------- */
 static void calc_frequency(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
 {
-    int idx = (int)ch->note + ch->transpose;
+    int idx = (int)ch->note + rp->transpose;
     if (idx < 0) idx = 0;
     if (idx > 127) idx = 127;
     ch->freq_raw = asm_freq_tab[idx];
@@ -187,16 +277,16 @@ static void calc_frequency(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
 }
 
 /* ----------------------------------------------------------------- */
-/* ASM note frequency write (0x2AD-0x2E1): normalize raw freq to     */
-/* block/fnum and write to OPL3 registers.  Also handles key-on.     */
-/* Called after setting freq_raw (via calc_frequency) and applying    */
-/* pitch effects.                                                     */
+/* ASM frequency/register write (0x2AD-0x2E1): normalise di to       */
+/* block+fnum and write OPL3 A+B registers.                          */
+/* di already includes freq_raw + pitch_wheel + effect offsets.      */
 /* ----------------------------------------------------------------- */
-static void apply_frequency(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
+static void apply_frequency(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch, int di, int write_b)
 {
+    if (asm_ch >= 0 && asm_ch < 6) apply_count[asm_ch]++;
     uint16_t bank = ch_bank[asm_ch];
     uint8_t nuked_ch = asm_to_nuked_ch[asm_ch];
-    int di = (int)ch->freq_raw + (int)ch->pitch_wheel;
+
     int cl = 0;
     while (di > 0x3FF) {
         cl++;
@@ -207,17 +297,127 @@ static void apply_frequency(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
     uint16_t a_reg = 0xA0 + ch_in_bank;
     uint16_t b_reg = 0xB0 + ch_in_bank;
     if (bank) { a_reg |= 0x0100; b_reg |= 0x0100; }
-    rp->opl_write(rp->opl_ctx, a_reg, (uint8_t)(bx & 0xFF));
-    uint8_t al = (uint8_t)((bx >> 8) & 0x03) | (uint8_t)((cl & 7) << 2);
-    ch->b_reg_val = al;
-    if (ch->flags & 0x01) al |= 0x20;
-    rp->opl_write(rp->opl_ctx, b_reg, al & ~0x20);
-    rp->opl_write(rp->opl_ctx, b_reg, al);
+    {
+        uint8_t new_a_val = (uint8_t)(bx & 0xFF);
+        opl_tracked_write(rp, a_reg, new_a_val);
+        ch->a_reg_val = new_a_val;
+    }
+    if (write_b) {
+        uint8_t al = (uint8_t)((bx >> 8) & 0x03) | (uint8_t)((cl & 7) << 2);
+        ch->b_reg_val = al;
+        if (ch->flags & 0x01) al |= 0x20;
+        opl_tracked_write(rp, b_reg, al);
+    }
 }
 
 /* ----------------------------------------------------------------- */
-/* ASM note_on_setup (0x349) combined: calc freq + write + portamento */
+/* Portamento helpers matching ASM semantics (MUSICV_2.COM)          */
 /* ----------------------------------------------------------------- */
+
+/* portamento_init — called after 0x91 command; computes step from   */
+/* target/speed, sets effects flag (ASM 0x48D).                     */
+static void portamento_init(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
+{
+    (void)rp; (void)asm_ch;
+    uint8_t speed = ch->portamento_speed;                /* wait reload (0x2F) */
+    if (speed == 0) return;
+    ch->effects_flags |= 0x02;
+    ch->portamento_wait_ctr = speed;                     /* 0x2E = speed */
+    ch->portamento_flip_ctr = 0;                         /* 0x2B = 0 */
+    uint16_t target = (uint16_t)ch->portamento_target;
+    ch->portamento_step_saved = (int16_t)(target / speed);      /* 0x34 = quotient */
+    ch->portamento_target = (int16_t)(target % speed);          /* 0x36 = remainder */
+}
+
+/* portamento_restart — called at note-on from frequency_update       */
+/* note-on path (ASM 0x110). Copies saved step to active.            */
+static void portamento_restart(wm_channel_t *ch)
+{
+    if (!(ch->effects_flags & 0x02)) return;
+    ch->portamento_flip_ctr = 0;                         /* 0x2B = 0 */
+    ch->portamento_wait_ctr = ch->portamento_speed;      /* 0x2E = 0x2F */
+    ch->portamento_step = ch->portamento_step_saved;     /* 0x30 = 0x34 */
+    ch->portamento_step2 = ch->portamento_target;        /* 0x32 = 0x36 (remainder) */
+    ch->portamento_delay_ctr = ch->portamento_delay;     /* 0x2D = 0x2C */
+    ch->portamento_accum = 0;                             /* 0x38 = 0 */
+}
+
+/* portamento_tick — called from frequency_update effects path       */
+/* (ASM 0x13B).  Returns int16_t to add to DI (0 if no change).     */
+/* Implements rate=2 handler (ASM 0x262) used by DUNGION.WM.        */
+static int16_t portamento_tick(wm_channel_t *ch)
+{
+    /* Outer delay (0x2D): one-shot; portamento starts after this    */
+    /* counts from portamento_delay to 0, then stays 0 forever.      */
+    if (ch->portamento_delay_ctr > 0) {
+        ch->portamento_delay_ctr--;
+        if (ch->portamento_delay_ctr > 0) return 0;
+        /* First entry: inner wait counter needs initial reset.      */
+        ch->portamento_wait_ctr = ch->portamento_speed;
+    }
+
+    /* --- Rate-2 handler begins (ASM 0x262) ----------------------- */
+    /* decrement inner wait counter (0x2E) */
+    ch->portamento_wait_ctr--;
+
+    if (ch->portamento_wait_ctr > 0) {
+        /* Normal tick: accum += step, DI += accum                   */
+        ch->portamento_accum += ch->portamento_step;
+        return ch->portamento_accum;
+    }
+
+    /* Wait counter expired (was 1, now 0): run flip logic           */
+    ch->portamento_wait_ctr = ch->portamento_speed;       /* reset (0x2F→0x2E) */
+    ch->portamento_flip_ctr = (ch->portamento_flip_ctr + 1) & 3;  /* 0x2B */
+
+    if ((ch->portamento_flip_ctr & 1) == 0) {
+        /* even (0 or 2): accum = 0 */
+        ch->portamento_accum = 0;
+        return 0;
+    }
+    /* odd (1 or 3): accum += step + step2, negate both              */
+    ch->portamento_accum += ch->portamento_step + ch->portamento_step2;
+    ch->portamento_step = -ch->portamento_step;                    /* 0x30 */
+    ch->portamento_step2 = -ch->portamento_step2;                  /* 0x32 */
+    return ch->portamento_accum;
+}
+
+/* ----------------------------------------------------------------- */
+/* frequency_update (ASM 0x26A) — called every tick for active        */
+/* channels with effects or pending key_on.                           */
+/* ----------------------------------------------------------------- */
+static void frequency_update(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
+{
+    /* test active bit (ASM: testb $0x80, 0x03(%si)) */
+    if (!(ch->flags & 0x80)) return;
+    int di = 0;
+    int write_b = 0;
+    if (ch->flags & 0x02) {
+        write_b = 1;
+        ch->flags &= ~0x02;                      /* clear key_on */
+        ch->flags |= 0x01;                       /* ensure note_on */
+        portamento_restart(ch);                  /* call 0x110 */
+    } else if (!(ch->flags & 0x01)) {
+        return;                                  /* no note_on, skip */
+    } else {
+        if (ch->effects_flags & 0x04) {          /* vibrato */
+            /* call vibrato handler here */
+        }
+        if (ch->effects_flags & 0x02) {          /* portamento */
+            di += portamento_tick(ch);
+        }
+        if (ch->effects_flags & 0x01) {          /* slide */
+            /* call slide handler here */
+        }
+    }
+    di += (int)ch->freq_raw;                     /* + 0x0B(%si) */
+    di += (int)ch->pitch_wheel;                  /* + 0x10(%si) */
+
+    di = (int)(uint16_t)(int16_t)di;
+
+    apply_frequency(rp, ch, asm_ch, di, write_b);
+}
+
 /* ================================================================= */
 /* Command dispatch helpers                                           */
 /* ================================================================= */
@@ -227,7 +427,11 @@ static void meta_set_tempo(wm_replayer_t *rp, const uint8_t **ptr, const uint8_t
     int v = rd_byte(ptr, end) | (rd_byte(ptr, end) << 8);
     if (v > 0) {
         rp->tempo = (uint16_t)v;
-        rp->tick_rate = (uint16_t)v;
+        /* ASM recalc_tempo (0x084F):  PIT_divisor = 1493043 / tempo;
+           tick_rate = 1193180 / PIT_divisor  (= 200 Hz when tempo ≈ 150) */
+        uint32_t pit_div = 1493043u / (uint32_t)v;
+        if (pit_div == 0) pit_div = 1;
+        rp->tick_rate = (uint16_t)(1193180u / pit_div);
     }
 }
 
@@ -241,13 +445,6 @@ static void meta_set_volume(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch,
 {
     ch->volume = rd_byte(ptr, end) & 0x0F;
     apply_volume(rp, ch, asm_ch);
-}
-
-static void meta_set_pan(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch,
-                         const uint8_t **ptr, const uint8_t *end)
-{
-    (void)rp; (void)asm_ch;
-    ch->pan = rd_byte(ptr, end);
 }
 
 static void meta_set_expression(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch,
@@ -342,11 +539,8 @@ static void f4_push(wm_channel_t *ch, const uint8_t **ptr, const uint8_t *end)
 {
     uint8_t val = rd_byte(ptr, end);
     if (ch->f4_depth < 15) {
-        if (ch->f4_depth == 0 && ch->outer_loop_remain == 0) {
-            ch->outer_loop_remain = val;
-        }
-        ch->f4_depth++;
         ch->f4_params[ch->f4_depth * 2] = val;
+        ch->f4_depth++;
     }
 }
 
@@ -355,7 +549,7 @@ static void f4_push(wm_channel_t *ch, const uint8_t **ptr, const uint8_t *end)
 static void f5_skip(wm_channel_t *ch, const uint8_t **ptr, const uint8_t *end)
 {
     if (ch->f4_depth > 0) {
-        uint8_t val = ch->f4_params[ch->f4_depth * 2];
+        uint8_t val = ch->f4_params[(ch->f4_depth - 1) * 2];
         if (val == 1) {
             uint16_t skip = rd_word(ptr, end);
             *ptr = *ptr + skip;
@@ -372,19 +566,16 @@ static void f8_loop(wm_channel_t *ch, const uint8_t **ptr, const uint8_t *end)
 {
     (void)end;
     if (ch->f4_depth > 0) {
-        int idx = ch->f4_depth * 2;
+        int idx = (ch->f4_depth - 1) * 2;
         uint8_t *val = &ch->f4_params[idx];
         if (*val > 0) {
             (*val)--;
         }
         if (*val == 0) {
-            // Counter reached zero: skip the signed offset byte and pop the stack
-            (*ptr)++; // consume offset
+            (*ptr)++;
             ch->f4_depth--;
         } else {
-            // Decremented counter still > 0: jump back by signed offset
             int8_t offset = (int8_t)(*(*ptr));
-            // Consume the offset byte then apply the signed displacement relative to the byte after the offset
             *ptr = *ptr + 1 + offset;
         }
     }
@@ -397,7 +588,7 @@ static void loop_write_raw(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch,
 {
     uint8_t reg = rd_byte(ptr, end);
     uint8_t val = rd_byte(ptr, end);
-    rp->opl_write(rp->opl_ctx, reg, val);
+    opl_tracked_write(rp, reg, val);
 }
 
 /* ================================================================= */
@@ -410,8 +601,10 @@ void wm_replayer_opl_init(wm_replayer_t *rp)
 #include "opl_init.inc"
     };
     for (size_t i = 0; i < sizeof(tbl)/sizeof(tbl[0]); i++)
-        rp->opl_write(rp->opl_ctx, (uint16_t)tbl[i].reg | ((uint16_t)tbl[i].bnk << 8), tbl[i].val);
+        opl_tracked_write(rp, (uint16_t)tbl[i].reg | ((uint16_t)tbl[i].bnk << 8), tbl[i].val);
 }
+
+static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch);
 
 /* ================================================================= */
 /* wm_replayer public API                                             */
@@ -423,7 +616,12 @@ void wm_replayer_init(wm_replayer_t *rp, opl_write_fn fn, void *ctx)
     rp->opl_write = fn;
     rp->opl_ctx = ctx;
     rp->tempo = 120;
-    rp->tick_rate = 200;
+    rp->tick_rate = 200;   /* match DRO capture rate for comparison */
+}
+
+static void null_opl_write(void *ctx, uint16_t reg, uint8_t val)
+{
+    (void)ctx; (void)reg; (void)val;
 }
 
 void wm_replayer_load(wm_replayer_t *rp, const wm_file_t *wm)
@@ -432,7 +630,7 @@ void wm_replayer_load(wm_replayer_t *rp, const wm_file_t *wm)
         wm_channel_t *ch = &rp->channels[i];
         ch->flags = 0x80;
         ch->note = 60;
-        ch->wait_remain = 0;
+        ch->wait_remain = 1;
         ch->ties_remain = 0;
         ch->ties_factor = 4;
         ch->data_word = 0;
@@ -440,52 +638,39 @@ void wm_replayer_load(wm_replayer_t *rp, const wm_file_t *wm)
         ch->volume = 10;
         ch->expression = 7;
         ch->pan = 7;
-        ch->transpose = 0;
         ch->inst_id = 0xFF;
         ch->inst_flags = 0;
         ch->op_tl[0] = 0; ch->op_tl[1] = 0; ch->op_tl[2] = 0; ch->op_tl[3] = 0;
         ch->loop_depth = 0;
         memset(ch->loop_stack, 0, sizeof(ch->loop_stack));
-        ch->outer_loop_remain = 0;
         memset(ch->f4_params, 0, sizeof(ch->f4_params));
         ch->pitch_wheel = 0;
         ch->freq_raw = 0;
+        ch->a_reg_val = 0;
+        ch->b_reg_val = 0;
+        ch->effects_flags = 0;
+        ch->portamento_rate = 0;
+        ch->portamento_speed = 0;
+        ch->portamento_wait_ctr = 0;
+        ch->portamento_delay = 0;
+        ch->portamento_delay_ctr = 0;
+        ch->portamento_step = 0;
+        ch->portamento_step2 = 0;
+        ch->portamento_step_saved = 0;
+        ch->portamento_accum = 0;
+        ch->portamento_target = 0;
         ch->stream = wm->tracks[i];
         ch->stream_start = wm->tracks[i];
-        ch->stream_end = wm->tracks[i] + wm->track_lens[i];
-        ch->stream_offset = wm->header.track_offsets[i];
-        ch->stream_len = (uint16_t)wm->track_lens[i];
+        ch->stream_end = ch->stream + wm->track_lens[i];
+        ch->stream_offset = 0;
+        ch->stream_len = wm->track_lens[i];
+        ch->c_val_saved = 0;
+        ch->c_xlat_index = 3;
     }
-    parse_instruments(rp, wm->inst_table, wm->inst_table_len);
-    wm_replayer_opl_init(rp);
-}
-
-void wm_replayer_reset(wm_replayer_t *rp)
-{
-    for (int i = 0; i < 6; i++) {
-        wm_channel_t *ch = &rp->channels[i];
-        ch->stream = ch->stream_start;
-        ch->wait_remain = 0;
-        ch->ties_remain = 0;
-        ch->ties_factor = 4;
-        ch->data_word = 0;
-        ch->f4_depth = 0;
-        ch->outer_loop_remain = 0;
-        ch->volume = 10;
-        ch->expression = 7;
-        ch->pan = 7;
-        ch->inst_id = 0xFF;
-        ch->inst_flags = 0;
-        ch->op_tl[0] = 0; ch->op_tl[1] = 0; ch->op_tl[2] = 0; ch->op_tl[3] = 0;
-        ch->loop_depth = 0;
-        memset(ch->loop_stack, 0, sizeof(ch->loop_stack));
-        memset(ch->f4_params, 0, sizeof(ch->f4_params));
-        ch->note = 60;
-        ch->flags = 0x80;
-        ch->pitch_wheel = 0;
-        ch->freq_raw = 0;
-    }
+    rp->insts = (wm_inst_entry_t *)wm->inst_table;
+    rp->num_insts = wm->inst_table_len / sizeof(wm_inst_entry_t);
     rp->current_tick = 0;
+    rp->transpose = 0;
 }
 
 /* ================================================================= */
@@ -496,176 +681,211 @@ static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
 {
     if (!(ch->flags & 0x80)) return 0;
 
+    /* ASM 0xB4C: if note_on && !ties && wait == ties_remain: keyoff */
+    if ((ch->flags & 0x01) && !(ch->flags & 0x04) &&
+        ch->wait_remain == ch->ties_remain) {
+        channel_note_off(rp, ch, asm_ch);
+    }
+
+    /* ASM 0xB63: decrement wait_remain; if > 0, still waiting */
+    if (ch->wait_remain > 0) {
+        ch->wait_remain--;
+        if (ch->wait_remain > 0) return 1;
+    }
+
+    /* ASM 0xB6A: wait expired — ties/skip_setup/keyoff cleanup */
+    if (ch->flags & 0x04) {
+        ch->effects_flags |= 0x08;
+        ch->flags |= 0x08;
+        ch->flags &= ~0x04;
+    } else {
+        ch->flags &= ~0x08;
+        channel_note_off(rp, ch, asm_ch);
+    }
+    ch->effects_flags &= ~0x01;
+
+    /* ASM fetch loop (0xB8C..0xBEE): process commands until note-on/0x80/0xF0 */
     const uint8_t **ptr = &ch->stream;
     const uint8_t *end = ch->stream_end;
+    uint8_t cmd;
 
-    /* Handle end of stream with possible outer loop restart */
-    if (*ptr >= end) {
-        if (ch->f4_depth > 0 && ch->outer_loop_remain > 1) {
-            ch->outer_loop_remain--;
-            ch->f4_depth = 0;
-            memset(ch->f4_params, 0, sizeof(ch->f4_params));
-            *ptr = ch->stream_start;
-        } else {
+/* NOTE_ON_HANDLER for cmd < 0x80: compact note-on, note=cmd, next byte=duration */
+#define NOTE_ON_HANDLER_SMALL(cmd) do { \
+    if (cmd != ch->note) { \
+        ch->effects_flags &= ~0x08; \
+        ch->flags &= ~0x08; \
+    } \
+    ch->note = cmd; \
+    uint8_t dur_ = rd_byte(ptr, end); \
+    ch->wait_remain = dur_; \
+    if (!(ch->flags & 0x04)) { \
+        int ties_ = (int)dur_ - ((int)dur_ * (int)ch->ties_factor / 8); \
+        if (ties_ < 1) ties_ = 1; \
+        ch->ties_remain = (uint8_t)ties_; \
+    } \
+    if (!(ch->flags & 0x08)) \
+        load_instrument(rp, ch, asm_ch, ch->inst_id); \
+    calc_frequency(rp, ch, asm_ch); \
+    ch->flags |= 0x01 | 0x02; \
+    return 1; \
+} while(0)
+
+/* NOTE_ON_HANDLER_BIG for cmd >= 0x80: compact note-on from cmd-0x80, dur=cmd & 0x7F */
+#define NOTE_ON_HANDLER_BIG(cmd) do { \
+    uint8_t note = (uint8_t)((cmd) - 0x80); \
+    if (note != ch->note) { \
+        ch->effects_flags &= ~0x08; \
+        ch->flags &= ~0x08; \
+    } \
+    ch->note = note; \
+    uint8_t dur_ = (cmd) & 0x7F; \
+    ch->wait_remain = dur_; \
+    if (!(ch->flags & 0x04)) { \
+        int ties_ = (int)dur_ - ((int)dur_ * (int)ch->ties_factor / 8); \
+        if (ties_ < 1) ties_ = 1; \
+        ch->ties_remain = (uint8_t)ties_; \
+    } \
+    if (!(ch->flags & 0x08)) \
+        load_instrument(rp, ch, asm_ch, ch->inst_id); \
+    calc_frequency(rp, ch, asm_ch); \
+    ch->flags |= 0x01 | 0x02; \
+    return 1; \
+} while(0)
+
+    for (;;) {
+        if (*ptr >= end) {
             ch->flags &= ~0x80;
             return 0;
         }
-    }
+        cmd = rd_byte(ptr, end);
 
-    uint8_t cmd = rd_byte(ptr, end);
+        if (cmd < 0x80) { NOTE_ON_HANDLER_SMALL(cmd); }
 
-    /* ---- cmd == 0x00: NOP ---- */
-    if (cmd == 0x00) return 1;
-
-    /* ---- cmd < 0x80: note-on with explicit duration ---- */
-    if (cmd < 0x80) {
-        ch->note = cmd;
-        uint8_t dur = rd_byte(ptr, end);
-        ch->wait_remain = dur;
-        if (ch->flags & 0x04) {
-            ch->ties_remain = dur;
-        } else {
-            int ties = (int)dur - ((int)dur * (int)ch->ties_factor / 8);
-            if (ties < 1) ties = 1;
-            ch->ties_remain = (uint8_t)ties;
-        }
-        if (!(ch->flags & 0x08))
-            load_instrument(rp, ch, asm_ch, ch->inst_id);
-        calc_frequency(rp, ch, asm_ch);
-        ch->flags |= 0x01;
-        apply_frequency(rp, ch, asm_ch);
-        apply_channel_c(rp, ch, asm_ch);
-        return 1;
-    }
-
-    /* ---- meta commands 0x80-0x8F (per ASM binary decode) ---- */
-    if (cmd >= 0x80 && cmd <= 0x8F) {
-        switch (cmd) {
-        case 0x80: rd_byte(ptr, end);                      break; /* CONSUME 1 */
-        case 0x81: ch->inst_id = rd_byte(ptr, end); ch->flags &= ~0x08; break;
-        case 0x82:                                           break; /* IGNORE */
-        case 0x83: {
-            ch->flags |= 0x04;
-            ch->note = rd_byte(ptr, end);
-            uint8_t dur = rd_byte(ptr, end);
-            ch->wait_remain = dur;
-            ch->ties_remain = dur;
-            if (!(ch->flags & 0x08))
-                load_instrument(rp, ch, asm_ch, ch->inst_id);
-            calc_frequency(rp, ch, asm_ch);
-            ch->flags |= 0x01;
-            apply_frequency(rp, ch, asm_ch);
-            apply_channel_c(rp, ch, asm_ch);
+        if (cmd == 0x80) {
+            ch->wait_remain = rd_byte(ptr, end);
+            ch->flags &= ~0x07;
             return 1;
         }
-        case 0x84: meta_set_tempo(rp, ptr, end);             break;
-        case 0x85: meta_set_ties_factor(ch, ptr, end);       break;
-        case 0x86:                                           break; /* IGNORE */
-        case 0x87: meta_set_volume(rp, ch, asm_ch, ptr, end); break;
-        case 0x88: rd_byte(ptr, end); /* global 0x9E9 */     break;
-        case 0x89: meta_set_pan(rp, ch, asm_ch, ptr, end);   break;
-        case 0x8A: meta_set_expression(rp, ch, asm_ch, ptr, end); break;
-        case 0x8B: ch->data_word = (uint16_t)rd_word(ptr, end); break;
-        case 0x8C: meta_expression_inc(rp, ch, asm_ch);      break;
-        case 0x8D: meta_expression_dec(rp, ch, asm_ch);      break;
-        case 0x8E: meta_volume_inc(rp, ch, asm_ch);          break;
-        case 0x8F: meta_volume_dec(rp, ch, asm_ch);          break;
-        default: break;
+
+        if (cmd == 0xF0) {
+            loop_end_track(rp, ch, asm_ch, ptr, end);
+            return 0;
         }
-        return 1;
-    }
-    /* ---- sub-commands 0x90-0x9F ---- */
-    if (cmd >= 0x90 && cmd <= 0x9F) {
-        switch (cmd) {
-        case 0x90: {
-            int note_num = rd_byte(ptr, end);
-            rd_byte(ptr, end);
-            uint8_t dur = rd_byte(ptr, end);
-            ch->note = (uint8_t)note_num;
-            ch->wait_remain = dur;
-            if (ch->flags & 0x04) {
-                ch->ties_remain = dur;
-            } else {
-                int ties = (int)dur - ((int)dur * (int)ch->ties_factor / 8);
-                if (ties < 1) ties = 1;
-                ch->ties_remain = (uint8_t)ties;
+
+        /* dispatch commands (0x81-0xFF except 0x80/0xF0) */
+        if (cmd <= 0x8F) {
+            /* 0x81-0x8F: specific commands (cmd & 0x0F for sub-dispatch) */
+            switch (cmd & 0x0F) {
+            case 0x01: ch->inst_id = rd_byte(ptr, end); ch->flags &= ~0x08; break;
+            case 0x02: /* 0x82: NOP */                                    break;
+            case 0x03: ch->wait_remain = rd_byte(ptr, end);                  break;
+            case 0x04: meta_set_tempo(rp, ptr, end);                       break;
+            case 0x05: meta_set_ties_factor(ch, ptr, end);                 break;
+            case 0x06: /* 0x86: NOP */                                     break;
+            case 0x07: meta_set_volume(rp, ch, asm_ch, ptr, end);          break;
+            case 0x08: rp->transpose = (int8_t)rd_byte(ptr, end);          break;
+            case 0x09: ch->pitch_wheel = rd_byte(ptr, end);                  break;
+            case 0x0A: ch->data_word = rd_word(ptr, end);
+                       ch->wait_remain = (uint8_t)ch->data_word;
+                       ch->flags |= 0x04;
+                       break;
+            case 0x0B: ch->pitch_wheel = (int16_t)rd_word(ptr, end);       break;
+            case 0x0C: meta_expression_inc(rp, ch, asm_ch);                break;
+            case 0x0D: meta_expression_dec(rp, ch, asm_ch);                break;
+            case 0x0E: rd_byte(ptr, end); meta_volume_inc(rp, ch, asm_ch); break;
+            case 0x0F: meta_volume_dec(rp, ch, asm_ch);                    break;
+            default: break;
             }
-            if (!(ch->flags & 0x08))
-                load_instrument(rp, ch, asm_ch, ch->inst_id);
-            calc_frequency(rp, ch, asm_ch);
-            ch->flags |= 0x01;
-            apply_frequency(rp, ch, asm_ch);
-            apply_channel_c(rp, ch, asm_ch);
-            return 1;
+            continue;
         }
-        case 0x91:
-            rd_byte(ptr, end); rd_byte(ptr, end);
-            rd_byte(ptr, end); rd_byte(ptr, end);
-            break;
-        case 0x92: break;
-        case 0x93: break;
-        case 0x94: rd_byte(ptr, end); break;
-        case 0x95: rd_byte(ptr, end); break;
-        default: break;
+        if (cmd <= 0x9F) {
+            /* 0x90-0x9F: extended commands and compact note-ons */
+            switch (cmd) {
+            case 0x90: {
+                int nn = rd_byte(ptr, end);
+                rd_byte(ptr, end);
+                uint8_t dr = rd_byte(ptr, end);
+                if (nn != ch->note) {
+                    ch->effects_flags &= ~0x08;
+                    ch->flags &= ~0x08;
+                }
+                ch->note = (uint8_t)nn;
+                ch->wait_remain = dr;
+                if (!(ch->flags & 0x04)) {
+                    int ts = (int)dr - ((int)dr * (int)ch->ties_factor / 8);
+                    if (ts < 1) ts = 1;
+                    ch->ties_remain = (uint8_t)ts;
+                }
+                if (!(ch->flags & 0x08))
+                    load_instrument(rp, ch, asm_ch, ch->inst_id);
+                calc_frequency(rp, ch, asm_ch);
+                ch->flags |= 0x01 | 0x02;
+                return 1;
+            }
+            case 0x91:
+                ch->portamento_rate = rd_byte(ptr, end);
+                ch->portamento_speed = rd_byte(ptr, end);
+                ch->portamento_target = (int16_t)rd_word(ptr, end);
+                portamento_init(rp, ch, asm_ch);
+                break;
+            case 0x92:                                              break;
+            case 0x93: ch->effects_flags &= ~0x02;                  break;
+            case 0x94: ch->portamento_delay = rd_byte(ptr, end);    break;
+            case 0x95: rd_byte(ptr, end);                           break;
+            default: /* 0x96-0x9F: compact note-ons (cmd >= 0x80) */
+                NOTE_ON_HANDLER_BIG(cmd);
+            }
+            continue;
         }
-        return 1;
-    }
-    /* ---- flow/loop commands 0xF0-0xFF ---- */
-    if (cmd >= 0xF0) {
+        /* 0xA0-0xEF: compact note-ons (cmd >= 0x80) */
+        if (cmd <= 0xEF) { NOTE_ON_HANDLER_BIG(cmd); }
+        /* 0xF1-0xFF (0xF0 handled above): loop/cmd handlers */
         switch (cmd) {
-        case 0xF0: loop_end_track(rp, ch, asm_ch, ptr, end); return 0;
-        case 0xF1: loop_start(ch, ptr, end); break;
-        case 0xF2: loop_repeat(rp, ch, asm_ch, ptr, end); break;
-        case 0xF3: rd_byte(ptr, end); rd_word(ptr, end); break;
-        case 0xF4: f4_push(ch, ptr, end); break;
-        case 0xF5: f5_skip(ch, ptr, end); break;
-        case 0xF6: rd_byte(ptr, end); break;
-        case 0xF7: loop_end(rp, ch, asm_ch, ptr, end); break;
-        case 0xF8: f8_loop(ch, ptr, end); break;
+        case 0xF1: loop_start(ch, ptr, end);                 break;
+        case 0xF2: loop_repeat(rp, ch, asm_ch, ptr, end);    break;
+        case 0xF3: rd_byte(ptr, end); rd_word(ptr, end);     break;
+        case 0xF4: f4_push(ch, ptr, end);                    break;
+        case 0xF5: f5_skip(ch, ptr, end);                    break;
+        case 0xF6: rd_byte(ptr, end);                        break;
+        case 0xF7: loop_end(rp, ch, asm_ch, ptr, end);       break;
+        case 0xF8: f8_loop(ch, ptr, end);                    break;
         case 0xF9: loop_write_raw(rp, ch, asm_ch, ptr, end); break;
         default: break;
         }
-        return 1;
     }
-    /* ---- raw OPL3 register writes 0xA0-0xEF ---- */
-    if (cmd >= 0xA0) {
-        uint8_t val = rd_byte(ptr, end);
-        uint8_t bank = ch_bank[asm_ch];
-        uint16_t reg = cmd;
-        if (bank) reg |= 0x100;
-        rp->opl_write(rp->opl_ctx, reg, val);
-        return 1;
-    }
-
-    return 1;
+#undef NOTE_ON_HANDLER_SMALL
+#undef NOTE_ON_HANDLER_BIG
 }
 
 /* ----------------------------------------------------------------- */
 int wm_replayer_tick(wm_replayer_t *rp)
 {
     int any = 0;
+    int active_count = 0;
     for (int i = 0; i < 6; i++) {
         wm_channel_t *ch = &rp->channels[i];
         int was_active = (ch->flags & 0x80) != 0;
+        if (was_active) active_count++;
 
-        /* Mirror old code guard: act on active channels with stream data */
-        if ((ch->flags & 0x80) && ch->stream < ch->stream_end) {
-            if (ch->wait_remain > 0) {
-                ch->wait_remain--;
-                if (ch->ties_remain > 0) {
-                    ch->ties_remain--;
-                    if (ch->ties_remain == 0)
-                        channel_note_off(rp, ch, i);
-                }
-                any = 1;
-            } else {
-                if (process_channel(rp, ch, i)) any = 1;
-            }
+        if ((ch->flags & 0x80)) {
+            if (process_channel(rp, ch, i)) any = 1;
+            frequency_update(rp, ch, i);
         }
 
         if (was_active && !(ch->flags & 0x80))
             dump_channel_state(rp, i);
     }
     rp->current_tick++;
+    if ((rp->current_tick % 3000) == 0 && active_count > 0) {
+        fprintf(stderr, "  [tick %u] active=%d any=%d\n", rp->current_tick, active_count, any);
+        for (int ci = 0; ci < 6; ci++) {
+            wm_channel_t *c = &rp->channels[ci];
+            if (c->flags & 0x80)
+                fprintf(stderr, "    ch%d: f4d=%d flags=%02x sr=%td\n",
+                    ci, c->f4_depth, c->flags,
+                    (ptrdiff_t)(c->stream_end - c->stream));
+        }
+        fflush(stderr);
+    }
     return any;
 }

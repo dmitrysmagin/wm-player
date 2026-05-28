@@ -48,19 +48,15 @@ int wm_load(const char *filename, wm_file_t *wm) {
     if (wm->header.inst_offset >= wm->size) wm->header.inst_offset = 0;
     if (wm->header.eof_offset  >= wm->size) wm->header.eof_offset  = (uint16_t)wm->size;
 
-    /* calculate track lengths: track[i] ends at track[i+1] (or EOF) */
+    /* Tracks share a flat buffer in the ASM.  Each channel reads from its
+       track_offset through EOF — no per-track boundaries (the ASM has none). */
+    uint32_t data_end = wm->header.eof_offset;
+    if (data_end == 0 || data_end > wm->size) data_end = (uint32_t)wm->size;
     for (int i = 0; i < 6; i++) {
         uint32_t start = wm->header.track_offsets[i];
         if (start == 0) { wm->tracks[i] = NULL; wm->track_lens[i] = 0; continue; }
-        uint32_t end = wm->size;
-        for (int j = 0; j < 6; j++) {
-            if (wm->header.track_offsets[j] > start && wm->header.track_offsets[j] < end)
-                end = wm->header.track_offsets[j];
-        }
-        if (wm->header.inst_offset > start && wm->header.inst_offset < end)
-            end = wm->header.inst_offset;
         wm->tracks[i] = wm->data + start;
-        wm->track_lens[i] = end - start;
+        wm->track_lens[i] = data_end - start;
     }
 
     /* instrument table: from inst_offset to next boundary (eof or next track) */

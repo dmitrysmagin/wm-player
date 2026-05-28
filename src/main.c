@@ -143,6 +143,23 @@ int main(int argc, char **argv)
                 pc.current_tick = ticks_done;
                 if (!wm_replayer_tick(&pc.rp)) {
                     printf("  Song ended at tick %u\n", ticks_done);
+                    printf("  f8_iterations: [%d,%d,%d,%d,%d,%d]\n",
+                           f8_iterations[0], f8_iterations[1], f8_iterations[2],
+                           f8_iterations[3], f8_iterations[4], f8_iterations[5]);
+                    printf("  f8_calls:      [%d,%d,%d,%d,%d,%d]\n",
+                           f8_calls[0], f8_calls[1], f8_calls[2],
+                           f8_calls[3], f8_calls[4], f8_calls[5]);
+                    printf("  f4_pushes:    [%d,%d,%d,%d,%d,%d]\n",
+                            f4_push_count[0], f4_push_count[1], f4_push_count[2],
+                            f4_push_count[3], f4_push_count[4], f4_push_count[5]);
+                    int ac[6];
+                    wm_apply_counts(ac);
+                    printf("  apply_calls:  [%d,%d,%d,%d,%d,%d]\n",
+                           ac[0], ac[1], ac[2], ac[3], ac[4], ac[5]);
+                    extern int load_counts[6];
+                    printf("  load_counts:  [%d,%d,%d,%d,%d,%d]\n",
+                           load_counts[0], load_counts[1], load_counts[2],
+                           load_counts[3], load_counts[4], load_counts[5]);
                     song_ended = 1;
                 }
             } else if (decay_frames == 0) {
