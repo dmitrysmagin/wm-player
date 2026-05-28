@@ -48,7 +48,7 @@ typedef struct {
     int16_t  pitch_wheel;
     uint8_t  b_reg_val;
     uint8_t  a_reg_val;       /* last written A register value */
-    /* effects flags (ASM [si+0x23]): bit2=vibrato, bit1=portamento, bit0=slide */
+    /* effects flags (ASM [si+0x23]): bit2=LFO(amp-mod), bit1=vibrato(freq-mod), bit0=slide */
     uint8_t  effects_flags;
 
     /* portamento/slide (cmd 0x91) — ASM frequency-accumulator model */
@@ -68,14 +68,35 @@ typedef struct {
     /* C register computation (ASM [si+0x3D], [si+0x3E]) */
     uint8_t  c_val_saved;            /* [si+0x3D] — saved parameter (copied from flags at instrument load) */
     uint8_t  c_xlat_index;           /* [si+0x3E] — index into XLAT table, init=3 */
+
+    /* LFO (amplitude modulation / tremolo) preset — loaded from instrument entry[0x1B..0x1D] */
+    uint8_t  lfo_lo;          /* [si+0x4B] — period length (ticks per half-cycle) */
+    uint8_t  lfo_hi;          /* [si+0x4D] — step magnitude; modified in-place by lfo_setup */
+    uint8_t  lfo_amp;         /* [si+0x48] — initial delay before LFO starts */
+    uint8_t  lfo_sub_step;    /* [si+0x4F] — sub-step reload value (computed by lfo_setup) */
+    /* LFO working registers, reset by lfo_restart on each key-on */
+    uint8_t  lfo_delay_ctr;   /* [si+0x49] */
+    uint8_t  lfo_period_ctr;  /* [si+0x4A] */
+    uint8_t  lfo_step;        /* [si+0x4C] — current step (may be negated each half-cycle) */
+    uint8_t  lfo_accum;       /* [si+0x4E] — byte accumulator; subtracted from vol attenuation */
+    uint8_t  lfo_sub_ctr;     /* [si+0x50] */
 } wm_channel_t;
 
 #define WM_INST_REGS 20
 
 typedef struct {
-    uint8_t id;
-    uint8_t flags;
-    uint8_t regs[WM_INST_REGS];
+    uint8_t  id;
+    uint8_t  flags;
+    uint8_t  regs[WM_INST_REGS];
+    /* vibrato (freq-mod) preset — entry bytes 0x16..0x1A */
+    uint8_t  vib_rate;        /* entry[0x16] lo — rate index (0-2) */
+    uint8_t  vib_speed;       /* entry[0x16] hi — wait reload */
+    uint16_t vib_amp;         /* entry[0x18..0x19] — amplitude word */
+    uint8_t  vib_delay;       /* entry[0x1A] — initial delay */
+    /* LFO (amp-mod / tremolo) preset — entry bytes 0x1B..0x1D */
+    uint8_t  lfo_lo;          /* entry[0x1B] — period length */
+    uint8_t  lfo_hi;          /* entry[0x1C] — step magnitude */
+    uint8_t  lfo_amp;         /* entry[0x1D] — initial delay */
 } wm_inst_entry_t;
 
 typedef struct {

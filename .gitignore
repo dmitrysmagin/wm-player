@@ -7,3 +7,4 @@ wmplay
 *.wav
 *.log
 .vscode
+build

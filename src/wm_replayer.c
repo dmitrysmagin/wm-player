@@ -148,9 +148,19 @@ static int parse_instruments(wm_replayer_t *rp, const uint8_t *data, size_t len)
     for (int i = 0; i < max_entries; i++) {
         const uint8_t *e = data + (size_t)(i * 30);
         if (e + 30 > data + len) break;
-        rp->insts[n].id = e[0x15];
+        rp->insts[n].id    = e[0x15];
         rp->insts[n].flags = e[0x14];
         memcpy(rp->insts[n].regs, e, WM_INST_REGS);
+        /* Vibrato preset: entry[0x16]=rate, entry[0x17]=speed,
+           entry[0x18..0x19]=amp word, entry[0x1A]=delay */
+        rp->insts[n].vib_rate  = e[0x16] & 0x03;
+        rp->insts[n].vib_speed = e[0x17];
+        rp->insts[n].vib_amp   = (uint16_t)(e[0x18] | ((uint16_t)e[0x19] << 8));
+        rp->insts[n].vib_delay = e[0x1A];
+        /* LFO (tremolo) preset: entry[0x1B]=lo, entry[0x1C]=hi, entry[0x1D]=amp/delay */
+        rp->insts[n].lfo_lo  = e[0x1B];
+        rp->insts[n].lfo_hi  = e[0x1C];
+        rp->insts[n].lfo_amp = e[0x1D];
         n++;
     }
     rp->num_insts = n;
@@ -158,6 +168,9 @@ static int parse_instruments(wm_replayer_t *rp, const uint8_t *data, size_t len)
 }
 
 static void apply_channel_c(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch);
+static void apply_volume(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch);
+static void portamento_init(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch);
+static void lfo_setup(wm_channel_t *ch);
 
 int load_counts[6] = {0};
 
@@ -186,9 +199,41 @@ static void load_instrument(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch, uin
         }
         ch->op_tl[op] = regs[op * 5 + 1];
     }
-    ch->inst_flags = flags;
+    ch->inst_flags  = flags;
     ch->c_val_saved = flags;
     apply_channel_c(rp, ch, asm_ch);
+
+    /* Apply vibrato (freq-mod) preset from entry[0x16..0x1A] (ASM 0x604) */
+    wm_inst_entry_t *inst = NULL;
+    for (int i = 0; i < rp->num_insts; i++) {
+        if (rp->insts[i].id == inst_id) { inst = &rp->insts[i]; break; }
+    }
+    if (inst) {
+        if (inst->vib_speed != 0) {
+            ch->portamento_rate  = inst->vib_rate;
+            ch->portamento_speed = inst->vib_speed;
+            ch->vibrato_amp      = (int16_t)inst->vib_amp;
+            ch->portamento_delay = inst->vib_delay;
+            portamento_init(rp, ch, asm_ch);
+        } else {
+            ch->effects_flags &= ~0x02;  /* no vibrato speed → disable */
+        }
+
+        /* Apply LFO (amp-mod) preset from entry[0x1B..0x1D] (ASM 0x627) */
+        if (inst->lfo_lo != 0 && inst->lfo_hi != 0) {
+            ch->lfo_lo  = inst->lfo_lo;
+            ch->lfo_hi  = inst->lfo_hi;
+            ch->lfo_amp = inst->lfo_amp;
+            lfo_setup(ch);
+        } else {
+            ch->effects_flags &= ~0x04;  /* no LFO params → disable */
+        }
+    }
+
+    /* Bug A: apply current channel volume to OPL TL registers (ASM does this
+       inline during the operator write loop; C wrote raw TL and must catch up). */
+    apply_volume(rp, ch, asm_ch);
+
     ch->flags |= 0x08;
 }
 
@@ -238,7 +283,10 @@ static void apply_channel_c(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
 
 static void apply_volume(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
 {
-    int atten = vol_tab[ch->volume & 0x0F];
+    /* ASM 0x3FE: effective attenuation = vol_tab[volume] - lfo_accum (signed), clamped 0..63 */
+    int atten = (int)vol_tab[ch->volume & 0x0F] - (int)(int8_t)ch->lfo_accum;
+    if (atten < 0)  atten = 0;
+    if (atten > 63) atten = 63;
     /* conn_table selects which operators are carriers and need volume scaling */
     uint8_t conn = conn_table[ch->c_val_saved & 3];
     for (int op = 0; op < 4; op++) {
@@ -350,52 +398,131 @@ static void portamento_init(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
 static void portamento_restart(wm_channel_t *ch)
 {
     if (!(ch->effects_flags & 0x02)) return;
-    ch->portamento_flip_ctr = 0;                         /* 0x2B = 0 */
-    ch->portamento_wait_ctr = ch->portamento_speed;      /* 0x2E = 0x2F */
-    ch->portamento_step = ch->portamento_step_saved;     /* 0x30 = 0x34 */
-    ch->portamento_step2 = ch->portamento_target;        /* 0x32 = 0x36 (remainder) */
-    ch->portamento_delay_ctr = ch->portamento_delay;     /* 0x2D = 0x2C */
-    ch->portamento_accum = 0;                             /* 0x38 = 0 */
+    ch->portamento_flip_ctr  = 0;                        /* [si+0x2B] = 0 */
+    ch->portamento_wait_ctr  = ch->portamento_speed;     /* [si+0x2E] = [si+0x2F] */
+    ch->portamento_step      = ch->portamento_step_saved; /* [si+0x30] = [si+0x34] */
+    ch->portamento_step2     = ch->portamento_target;    /* [si+0x32] = [si+0x36] */
+    ch->portamento_delay_ctr = ch->portamento_delay;     /* [si+0x2D] = [si+0x2C] */
+    ch->portamento_accum     = ch->vibrato_amp;          /* [si+0x38] = [si+0x3A] (ASM 0x134) */
 }
 
-/* portamento_tick — called from frequency_update effects path       */
-/* (ASM 0x13B).  Returns int16_t to add to DI (0 if no change).     */
-/* Implements rate=2 handler (ASM 0x262) used by DUNGION.WM.        */
+/* portamento_tick — ASM 0x13B, dispatches through jump table by rate.
+   Returns frequency offset to add to DI (0 = no change).           */
 static int16_t portamento_tick(wm_channel_t *ch)
 {
-    /* Outer delay (0x2D): one-shot; portamento starts after this    */
-    /* counts from portamento_delay to 0, then stays 0 forever.      */
+    /* Outer one-shot delay (ASM 0x13B): decrement delay_ctr; when 0 proceed */
     if (ch->portamento_delay_ctr > 0) {
         ch->portamento_delay_ctr--;
         if (ch->portamento_delay_ctr > 0) return 0;
-        /* First entry: inner wait counter needs initial reset.      */
-        ch->portamento_wait_ctr = ch->portamento_speed;
+        /* Delay just expired — fall through to rate handler this same tick */
     }
 
-    /* --- Rate-2 handler begins (ASM 0x262) ----------------------- */
-    /* decrement inner wait counter (0x2E) */
-    ch->portamento_wait_ctr--;
-
-    if (ch->portamento_wait_ctr > 0) {
-        /* Normal tick: accum += step, DI += accum                   */
-        ch->portamento_accum += ch->portamento_step;
+    if (ch->portamento_rate == 0) {
+        /* Rate-0 handler (ASM 0x1B4): accum decreases by step each tick;
+           reloads from vibrato_amp when wait counter expires.        */
+        ch->portamento_wait_ctr--;
+        if (ch->portamento_wait_ctr != 0) {
+            ch->portamento_accum -= ch->portamento_step;
+            return ch->portamento_accum;
+        }
+        ch->portamento_wait_ctr = ch->portamento_speed;
+        ch->portamento_accum    = ch->vibrato_amp;
         return ch->portamento_accum;
     }
 
-    /* Wait counter expired (was 1, now 0): run flip logic           */
-    ch->portamento_wait_ctr = ch->portamento_speed;       /* reset (0x2F→0x2E) */
-    ch->portamento_flip_ctr = (ch->portamento_flip_ctr + 1) & 3;  /* 0x2B */
+    if (ch->portamento_rate == 1) {
+        /* Rate-1 handler (ASM 0x1A2): adds vibrato_amp to DI every tick;
+           negates vibrato_amp each time wait counter expires (square wave). */
+        ch->portamento_wait_ctr--;
+        if (ch->portamento_wait_ctr == 0) {
+            ch->portamento_wait_ctr = ch->portamento_speed;
+            ch->vibrato_amp = -ch->vibrato_amp;
+        }
+        return ch->vibrato_amp;
+    }
 
+    /* Rate-2 handler (ASM 0x262): flip-counter / accumulator model   */
+    ch->portamento_wait_ctr--;
+    if (ch->portamento_wait_ctr != 0) {
+        ch->portamento_accum += ch->portamento_step;
+        return ch->portamento_accum;
+    }
+    ch->portamento_wait_ctr = ch->portamento_speed;
+    ch->portamento_flip_ctr = (ch->portamento_flip_ctr + 1) & 3;
     if ((ch->portamento_flip_ctr & 1) == 0) {
-        /* even (0 or 2): accum = 0 */
         ch->portamento_accum = 0;
         return 0;
     }
-    /* odd (1 or 3): accum += step + step2, negate both              */
     ch->portamento_accum += ch->portamento_step + ch->portamento_step2;
-    ch->portamento_step = -ch->portamento_step;                    /* 0x30 */
-    ch->portamento_step2 = -ch->portamento_step2;                  /* 0x32 */
+    ch->portamento_step  = -ch->portamento_step;
+    ch->portamento_step2 = -ch->portamento_step2;
     return ch->portamento_accum;
+}
+
+/* lfo_setup — ASM 0x3D4: computes lfo_hi (step) and lfo_sub_step from
+   the raw preset values stored in the channel; modifies lfo_hi in-place. */
+static void lfo_setup(wm_channel_t *ch)
+{
+    ch->effects_flags |= 0x04;
+    ch->lfo_sub_step = 0;
+    uint8_t lo = ch->lfo_lo;   /* period */
+    uint8_t hi = ch->lfo_hi;   /* step rate */
+    if (hi >= lo) {
+        /* ASM 0x3F6: lfo_hi = lfo_hi / lfo_lo */
+        ch->lfo_hi = (lo > 0) ? (hi / lo) : hi;
+    } else {
+        /* ASM 0x3E8: lfo_sub_step = lfo_lo / lfo_hi; lfo_hi = 1 */
+        ch->lfo_sub_step = (hi > 0) ? (lo / hi) : 0;
+        ch->lfo_hi = 1;
+    }
+}
+
+/* lfo_restart — ASM 0x1D4: resets working registers from preset values.
+   Called at key-on (frequency_update key_on path, ASM 0x2A5).       */
+static void lfo_restart(wm_channel_t *ch)
+{
+    if (!(ch->effects_flags & 0x04)) return;
+    ch->lfo_period_ctr = ch->lfo_lo;
+    ch->lfo_delay_ctr  = ch->lfo_amp;
+    ch->lfo_sub_ctr    = ch->lfo_sub_step;
+    ch->lfo_step       = ch->lfo_hi;
+    ch->lfo_accum      = 0;
+}
+
+/* lfo_tick — ASM 0x1F9: per-tick LFO update; updates lfo_accum and
+   calls apply_volume when the accumulator changes.                    */
+static void lfo_tick(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
+{
+    if (!(ch->effects_flags & 0x04)) return;
+
+    /* Initial delay counter (lfo_amp reload at restart) */
+    if (ch->lfo_delay_ctr > 0) {
+        ch->lfo_delay_ctr--;
+        if (ch->lfo_delay_ctr > 0) return;
+        /* Delay just expired — proceed to period section this tick */
+    }
+
+    /* Period counter */
+    ch->lfo_period_ctr--;
+    if (ch->lfo_period_ctr == 0) {
+        /* Half-cycle expired (ASM 0x22E): reload, negate step, apply */
+        ch->lfo_sub_ctr    = ch->lfo_sub_step;
+        ch->lfo_period_ctr = ch->lfo_lo;
+        ch->lfo_step       = (uint8_t)(-(int8_t)ch->lfo_step);
+        ch->lfo_accum      = (uint8_t)((int8_t)ch->lfo_accum + (int8_t)ch->lfo_step);
+        apply_volume(rp, ch, asm_ch);
+        return;
+    }
+
+    /* Sub-step counter (ASM 0x20D) */
+    if (ch->lfo_sub_ctr > 0) {
+        ch->lfo_sub_ctr--;
+        if (ch->lfo_sub_ctr > 0) return;
+    }
+    /* Sub-step fired (ASM 0x21C): reload, accumulate, apply */
+    ch->lfo_sub_ctr = ch->lfo_sub_step;
+    ch->lfo_accum   = (uint8_t)((int8_t)ch->lfo_accum + (int8_t)ch->lfo_step);
+    apply_volume(rp, ch, asm_ch);
 }
 
 /* ----------------------------------------------------------------- */
@@ -412,14 +539,15 @@ static void frequency_update(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
         write_b = 1;
         ch->flags &= ~0x02;                      /* clear key_on */
         ch->flags |= 0x01;                       /* ensure note_on */
-        portamento_restart(ch);                  /* call 0x110 */
+        portamento_restart(ch);                  /* ASM 0x110 */
+        lfo_restart(ch);                         /* ASM 0x1D4 */
     } else if (!(ch->flags & 0x01)) {
         return;                                  /* no note_on, skip */
     } else {
-        if (ch->effects_flags & 0x04) {          /* vibrato */
-            /* call vibrato handler here */
+        if (ch->effects_flags & 0x04) {          /* LFO amp-mod (ASM 0x1F9) */
+            lfo_tick(rp, ch, asm_ch);
         }
-        if (ch->effects_flags & 0x02) {          /* portamento */
+        if (ch->effects_flags & 0x02) {          /* vibrato freq-mod (ASM 0x13B) */
             di += portamento_tick(ch);
         }
         if (ch->effects_flags & 0x01) {          /* slide (cmd 0x90) */
@@ -689,6 +817,9 @@ void wm_replayer_load(wm_replayer_t *rp, const wm_file_t *wm)
         ch->portamento_accum = 0;
         ch->portamento_target = 0;
         ch->vibrato_amp = 0;
+        ch->lfo_lo = 0; ch->lfo_hi = 0; ch->lfo_amp = 0; ch->lfo_sub_step = 0;
+        ch->lfo_delay_ctr = 0; ch->lfo_period_ctr = 0;
+        ch->lfo_step = 0; ch->lfo_accum = 0; ch->lfo_sub_ctr = 0;
         ch->stream = wm->tracks[i];
         ch->stream_start = wm->tracks[i];
         ch->stream_end = ch->stream + wm->track_lens[i];
