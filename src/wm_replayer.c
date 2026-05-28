@@ -807,7 +807,7 @@ static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
             continue;
         }
         if (cmd <= 0x9F) {
-            /* 0x90-0x9F: extended commands and compact note-ons */
+            /* 0x90-0x9F: extended commands (ASM secondary dispatch) */
             switch (cmd) {
             case 0x90: {
                 /* ASM at runtime 0x0DF6 (file 0x0CF6):
@@ -852,13 +852,13 @@ static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
             case 0x93: ch->effects_flags &= ~0x02;                  break;
             case 0x94: ch->portamento_delay = rd_byte(ptr, end);    break;
             case 0x95: rd_byte(ptr, end);                           break;
-            default: /* 0x96-0x9F: compact note-ons (cmd >= 0x80) */
-                NOTE_ON_HANDLER_BIG(cmd);
+            default: /* 0x96-0x9F: NOPs per ASM secondary dispatch entries 6-15 */
+                break;
             }
             continue;
         }
-        /* 0xA0-0xEF: compact note-ons (cmd >= 0x80) */
-        if (cmd <= 0xEF) { NOTE_ON_HANDLER_BIG(cmd); }
+        /* 0xA0-0xEF: NOPs per ASM primary dispatch entries 2-6 (all RET) */
+        if (cmd <= 0xEF) { continue; }
         /* 0xF1-0xFF (0xF0 handled above): loop/cmd handlers */
         switch (cmd) {
         case 0xF1: loop_start(ch, ptr, end);                 break;
