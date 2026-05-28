@@ -61,8 +61,9 @@ typedef struct {
     int16_t  portamento_step;        /* [si+0x30] — active step (negated on odd flips) */
     int16_t  portamento_step2;       /* [si+0x32] — second step (same as step, negated together) */
     int16_t  portamento_step_saved;  /* [si+0x34] — step = target/speed, computed at 0x91 init */
+    int16_t  portamento_target;      /* [si+0x36] — remainder after amp/speed division; also slide target */
     int16_t  portamento_accum;       /* [si+0x38] — current frequency offset accumulator */
-    int16_t  portamento_target;      /* [si+0x36] — original target word, cleared after init */
+    int16_t  vibrato_amp;            /* [si+0x3A] — vibrato amplitude (written by cmd 0x91, read by vibrato_setup) */
 
     /* C register computation (ASM [si+0x3D], [si+0x3E]) */
     uint8_t  c_val_saved;            /* [si+0x3D] — saved parameter (copied from flags at instrument load) */
