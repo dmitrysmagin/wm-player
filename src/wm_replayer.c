@@ -176,6 +176,7 @@ static void load_instrument(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch, uin
         for (int grp = 0; grp < 5; grp++) {
             int byte_idx = op * 5 + grp;
             uint16_t reg = opl_reg(asm_ch, op, grp);
+
             opl_tracked_write(rp, reg, regs[byte_idx]);
         }
         ch->op_tl[op] = regs[op * 5 + 1];
@@ -406,8 +407,16 @@ static void frequency_update(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
         if (ch->effects_flags & 0x02) {          /* portamento */
             di += portamento_tick(ch);
         }
-        if (ch->effects_flags & 0x01) {          /* slide */
-            /* call slide handler here */
+        if (ch->effects_flags & 0x01) {          /* slide (cmd 0x90) */
+            /* ASM at file 0x024D */
+            if (ch->wait_remain <= 1) {
+                /* snap to target on last tick, clear slide */
+                ch->freq_raw = (uint16_t)ch->portamento_target;
+                ch->effects_flags &= ~0x01;
+            } else {
+                ch->portamento_accum += ch->portamento_step;
+                di += ch->portamento_accum;
+            }
         }
     }
     di += (int)ch->freq_raw;                     /* + 0x0B(%si) */
@@ -667,8 +676,7 @@ void wm_replayer_load(wm_replayer_t *rp, const wm_file_t *wm)
         ch->c_val_saved = 0;
         ch->c_xlat_index = 3;
     }
-    rp->insts = (wm_inst_entry_t *)wm->inst_table;
-    rp->num_insts = wm->inst_table_len / sizeof(wm_inst_entry_t);
+    parse_instruments(rp, wm->inst_table, wm->inst_table_len);
     rp->current_tick = 0;
     rp->transpose = 0;
 }
@@ -701,8 +709,8 @@ static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
     } else {
         ch->flags &= ~0x08;
         channel_note_off(rp, ch, asm_ch);
+        ch->effects_flags &= ~0x01;    /* clear slide on note end (ASM 0xB85) */
     }
-    ch->effects_flags &= ~0x01;
 
     /* ASM fetch loop (0xB8C..0xBEE): process commands until note-on/0x80/0xF0 */
     const uint8_t **ptr = &ch->stream;
@@ -802,23 +810,35 @@ static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
             /* 0x90-0x9F: extended commands and compact note-ons */
             switch (cmd) {
             case 0x90: {
-                int nn = rd_byte(ptr, end);
-                rd_byte(ptr, end);
-                uint8_t dr = rd_byte(ptr, end);
-                if (nn != ch->note) {
-                    ch->effects_flags &= ~0x08;
-                    ch->flags &= ~0x08;
-                }
-                ch->note = (uint8_t)nn;
-                ch->wait_remain = dr;
-                if (!(ch->flags & 0x04)) {
-                    int ts = (int)dr - ((int)dr * (int)ch->ties_factor / 8);
-                    if (ts < 1) ts = 1;
-                    ch->ties_remain = (uint8_t)ts;
-                }
+                /* ASM at runtime 0x0DF6 (file 0x0CF6):
+                   Reads word target + byte note, slide init + note-on */
+                int target_word = rd_word(ptr, end);
+                uint8_t dur = rd_byte(ptr, end);
+                int target_lo = (target_word & 0xFF) + rp->transpose;
+                int target_hi = ((target_word >> 8) & 0xFF) + rp->transpose;
+                if (target_lo < 0) target_lo = 0;
+                if (target_lo > 127) target_lo = 127;
+                if (target_hi < 0) target_hi = 0;
+                if (target_hi > 127) target_hi = 127;
+                uint16_t freq_lo = asm_freq_tab[target_lo];
+                uint16_t freq_hi = asm_freq_tab[target_hi];
+
+                ch->wait_remain = dur;
+                ch->freq_raw = freq_lo;
+                ch->portamento_target = (int16_t)freq_hi;
+
+                int diff = (int)freq_hi - (int)freq_lo;
+                int divisor = (int)dur;
+                if (divisor < 1) divisor = 1;
+                ch->portamento_step = (int16_t)(diff / divisor);
+                ch->portamento_accum = 0;
+
+                ch->effects_flags |= 0x01;
+                ch->effects_flags &= ~0x08;
+                ch->flags &= ~0x08;
+
                 if (!(ch->flags & 0x08))
                     load_instrument(rp, ch, asm_ch, ch->inst_id);
-                calc_frequency(rp, ch, asm_ch);
                 ch->flags |= 0x01 | 0x02;
                 return 1;
             }
