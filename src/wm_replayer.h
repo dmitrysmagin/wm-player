@@ -65,6 +65,11 @@ typedef struct {
     int16_t  portamento_accum;       /* [si+0x38] — current frequency offset accumulator */
     int16_t  vibrato_amp;            /* [si+0x3A] — vibrato amplitude (written by cmd 0x91, read by vibrato_setup) */
 
+    /* slide effect (cmd 0x90) — ASM [si+0x24], [si+0x26], [si+0x28] — separate from vibrato */
+    int16_t  slide_accum;           /* [si+0x24] — running slide frequency offset (zeroed at key-on) */
+    int16_t  slide_step;            /* [si+0x26] — per-tick slide step */
+    int16_t  slide_target;          /* [si+0x28] — slide target frequency */
+
     /* C register computation (ASM [si+0x3D], [si+0x3E]) */
     uint8_t  c_val_saved;            /* [si+0x3D] — saved parameter (copied from flags at instrument load) */
     uint8_t  c_xlat_index;           /* [si+0x3E] — index into XLAT table, init=3 */
@@ -118,6 +123,9 @@ typedef struct {
     uint8_t four_op_conn[18];   /* raw Cx register bit4 per channel */
     uint8_t four_op_nv[2];      /* 0x104 and 0x105 NV register values */
     uint8_t four_op_enabled;    /* set if any NV bit is 1 */
+
+    /* song looping — pointer kept so tick can restart when all channels die */
+    const wm_file_t *wm_src;
 } wm_replayer_t;
 
 extern int f8_iterations[6];

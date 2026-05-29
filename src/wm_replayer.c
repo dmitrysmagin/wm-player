@@ -179,60 +179,64 @@ static void load_instrument(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch, uin
     load_counts[asm_ch]++;
     const uint8_t *regs = NULL;
     uint8_t flags = 0;
+    wm_inst_entry_t *inst = NULL;
     for (int i = 0; i < rp->num_insts; i++) {
         if (rp->insts[i].id == inst_id) {
-            regs = rp->insts[i].regs;
+            regs  = rp->insts[i].regs;
             flags = rp->insts[i].flags;
+            inst  = &rp->insts[i];
             break;
         }
     }
     if (!regs) return;
-    (void)asm_ch; (void)inst_id;
-    ch->inst_id = inst_id;
-    ch->inst_flags = flags;
-    for (int op = 0; op < 4; op++) {
-        for (int grp = 0; grp < 5; grp++) {
-            int byte_idx = op * 5 + grp;
-            uint16_t reg = opl_reg(asm_ch, op, grp);
-
-            opl_tracked_write(rp, reg, regs[byte_idx]);
-        }
-        ch->op_tl[op] = regs[op * 5 + 1];
-    }
+    ch->inst_id     = inst_id;
     ch->inst_flags  = flags;
     ch->c_val_saved = flags;
+
+    /* Pre-compute attenuation for carrier operators — applied inline (ASM 0x4D2) */
+    uint8_t conn = conn_table[flags & 3];
+    int atten = (int)vol_tab[ch->volume & 0x0F] - (int)(int8_t)ch->lfo_accum;
+    if (atten < 0)  atten = 0;
+    if (atten > 63) atten = 63;
+
+    for (int op = 0; op < 4; op++) {
+        uint8_t carrier_bit = (conn >> op) & 1;
+        for (int grp = 0; grp < 5; grp++) {
+            int byte_idx = op * 5 + grp;
+            uint8_t val  = regs[byte_idx];
+            uint16_t reg = opl_reg(asm_ch, op, grp);
+            if (grp == 1 && carrier_bit) {
+                /* Carrier TL: write volume-adjusted value, matching ASM inline behaviour */
+                int new_tl = (val & 0x3F) + atten;
+                if (new_tl > 63) new_tl = 63;
+                val = (val & 0xC0) | (uint8_t)new_tl;
+            }
+            opl_tracked_write(rp, reg, val);
+        }
+        ch->op_tl[op] = regs[op * 5 + 1];  /* save raw TL for future apply_volume calls */
+    }
     apply_channel_c(rp, ch, asm_ch);
 
     /* Apply vibrato (freq-mod) preset from entry[0x16..0x1A] (ASM 0x604) */
-    wm_inst_entry_t *inst = NULL;
-    for (int i = 0; i < rp->num_insts; i++) {
-        if (rp->insts[i].id == inst_id) { inst = &rp->insts[i]; break; }
-    }
-    if (inst) {
-        if (inst->vib_speed != 0) {
-            ch->portamento_rate  = inst->vib_rate;
-            ch->portamento_speed = inst->vib_speed;
-            ch->vibrato_amp      = (int16_t)inst->vib_amp;
-            ch->portamento_delay = inst->vib_delay;
-            portamento_init(rp, ch, asm_ch);
-        } else {
-            ch->effects_flags &= ~0x02;  /* no vibrato speed → disable */
-        }
-
-        /* Apply LFO (amp-mod) preset from entry[0x1B..0x1D] (ASM 0x627) */
-        if (inst->lfo_lo != 0 && inst->lfo_hi != 0) {
-            ch->lfo_lo  = inst->lfo_lo;
-            ch->lfo_hi  = inst->lfo_hi;
-            ch->lfo_amp = inst->lfo_amp;
-            lfo_setup(ch);
-        } else {
-            ch->effects_flags &= ~0x04;  /* no LFO params → disable */
-        }
+    if (inst->vib_speed != 0) {
+        ch->portamento_rate  = inst->vib_rate;
+        ch->portamento_speed = inst->vib_speed;
+        ch->vibrato_amp      = (int16_t)inst->vib_amp;
+        ch->portamento_delay = inst->vib_delay;
+        portamento_init(rp, ch, asm_ch);
+    } else {
+        ch->effects_flags &= ~0x02;  /* no vibrato speed → disable */
     }
 
-    /* Bug A: apply current channel volume to OPL TL registers (ASM does this
-       inline during the operator write loop; C wrote raw TL and must catch up). */
-    apply_volume(rp, ch, asm_ch);
+    /* Apply LFO (amp-mod) preset from entry[0x1B..0x1D] (ASM 0x627) */
+    if (inst->lfo_lo != 0 && inst->lfo_hi != 0) {
+        ch->lfo_lo  = inst->lfo_lo;
+        ch->lfo_hi  = inst->lfo_hi;
+        ch->lfo_amp = inst->lfo_amp;
+        lfo_setup(ch);
+    } else {
+        ch->effects_flags &= ~0x04;  /* no LFO params → disable */
+    }
 
     ch->flags |= 0x08;
 }
@@ -270,12 +274,6 @@ static void apply_channel_c(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
     uint8_t ch_bit = (flags & 1);
     uint8_t c0_val = cl;
     uint8_t c3_val = (cl & 0xFE) | ch_bit;
-
-    if (ch->flags & 0x04) {
-        /* tied notes: override with delta = 0x0E (max feedback) */
-        c0_val = (c0_val & 0xF1) | 0x0E;
-        c3_val = (c3_val & 0xF1) | 0x0E;
-    }
 
     opl_tracked_write(rp, c_reg1, c0_val);
     opl_tracked_write(rp, c_reg2, c3_val);
@@ -539,6 +537,7 @@ static void frequency_update(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
         write_b = 1;
         ch->flags &= ~0x02;                      /* clear key_on */
         ch->flags |= 0x01;                       /* ensure note_on */
+        ch->slide_accum = 0;                     /* ASM 0x2A8: movw $0x0, 0x24(%si) */
         portamento_restart(ch);                  /* ASM 0x110 */
         lfo_restart(ch);                         /* ASM 0x1D4 */
     } else if (!(ch->flags & 0x01)) {
@@ -551,14 +550,14 @@ static void frequency_update(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
             di += portamento_tick(ch);
         }
         if (ch->effects_flags & 0x01) {          /* slide (cmd 0x90) */
-            /* ASM at file 0x024D */
+            /* ASM at file 0x024D; uses separate [si+0x24]/[si+0x26]/[si+0x28] fields */
             if (ch->wait_remain <= 1) {
                 /* snap to target on last tick, clear slide */
-                ch->freq_raw = (uint16_t)ch->portamento_target;
+                ch->freq_raw = (uint16_t)ch->slide_target;
                 ch->effects_flags &= ~0x01;
             } else {
-                ch->portamento_accum += ch->portamento_step;
-                di += ch->portamento_accum;
+                ch->slide_accum += ch->slide_step;
+                di += ch->slide_accum;
             }
         }
     }
@@ -642,11 +641,18 @@ static void loop_end_track(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch,
     channel_note_off(rp, ch, asm_ch);
 }
 
+/* F1: relative jump by signed 16-bit word at current ptr.
+   ASM: ADD DI, word[DI]; RET  — DI = DI + word_at_DI (not DI+2+word). */
 static void loop_start(wm_channel_t *ch, const uint8_t **ptr, const uint8_t *end)
 {
-    if (ch->loop_depth < 8) {
-        ch->loop_stack[ch->loop_depth] = *ptr;
-        ch->loop_depth++;
+    (void)end;
+    const uint8_t *cur = *ptr;
+    if (cur + 2 <= ch->stream_end) {
+        int16_t offset = (int16_t)((uint16_t)cur[0] | ((uint16_t)cur[1] << 8));
+        const uint8_t *tgt = cur + offset;
+        if (tgt >= ch->stream_start && tgt < ch->stream_end) {
+            *ptr = tgt;
+        }
     }
 }
 
@@ -670,14 +676,28 @@ static void loop_repeat(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch,
     }
 }
 
-/* F7: loop end at stream - pop and auto-repeat if depth > 0 */
+/* F7: uses f4_params stack (same as F4/F8).
+   ASM: MOV AL, array[depth]; DEC AL (register only, NOT memory); JNZ skip;
+   If array[depth] == 1: backward jump by 1-byte signed offset, depth--;
+   Else: INC DI (skip offset byte), continue.
+   Note: array[depth] is NEVER decremented — F7 is a one-shot conditional jump,
+   not a countdown loop. */
 static void loop_end(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch,
                      const uint8_t **ptr, const uint8_t *end)
 {
     (void)rp; (void)asm_ch; (void)end;
-    (void)ptr;
-    if (ch->loop_depth > 0) {
-        ch->loop_depth--;
+    if (ch->f4_depth > 0) {
+        int idx = (ch->f4_depth - 1) * 2;
+        uint8_t val = ch->f4_params[idx];        /* read but DO NOT decrement in memory */
+        uint8_t val_dec = (uint8_t)(val - 1);    /* register-only decrement */
+        if (val_dec == 0) {
+            /* array[depth] == 1: take backward jump, depth-- */
+            int8_t offset = (int8_t)(*(*ptr));
+            *ptr = *ptr + offset;                /* ASM: DI = offset_byte_addr + offset */
+            ch->f4_depth--;
+        } else {
+            (*ptr)++;                            /* skip offset byte, continue forward */
+        }
     }
 }
 
@@ -701,18 +721,50 @@ static void f4_push(wm_channel_t *ch, const uint8_t **ptr, const uint8_t *end)
     }
 }
 
-/* F5: test top of f4 stack; if value==1, read 2-byte forward jump from stream,
-   otherwise skip 2 bytes (ASM 0x0EBB) */
+/* F5: test top of f4 stack; if value==1, jump by signed 2-byte word (ADD DI,[DI]), depth--;
+   otherwise skip 2 bytes. Register-only check — does NOT decrement in memory. (ASM 0x0EBB) */
 static void f5_skip(wm_channel_t *ch, const uint8_t **ptr, const uint8_t *end)
 {
+    (void)end;
     if (ch->f4_depth > 0) {
         uint8_t val = ch->f4_params[(ch->f4_depth - 1) * 2];
         if (val == 1) {
-            uint16_t skip = rd_word(ptr, end);
-            *ptr = *ptr + skip;
+            /* ADD DI, [DI]: jump by signed word at current ptr, no +2 advance */
+            const uint8_t *cur = *ptr;
+            if (cur + 2 <= ch->stream_end) {
+                int16_t offset = (int16_t)((uint16_t)cur[0] | ((uint16_t)cur[1] << 8));
+                const uint8_t *tgt = cur + offset;
+                if (tgt >= ch->stream_start && tgt < ch->stream_end)
+                    *ptr = tgt;
+            }
+            ch->f4_depth--;
         } else {
-            rd_byte(ptr, end);
-            rd_byte(ptr, end);
+            (*ptr) += 2;  /* skip 2-byte word */
+        }
+    }
+}
+
+/* F6: counted loop with 2-byte signed word jump (same f4_params array as F4/F8).
+   ASM: DEC BYTE [BX] (memory); if counter>0: ADD DI,[DI] (jump by word); if 0: skip word, depth-- */
+static void f6_loop(wm_channel_t *ch, const uint8_t **ptr, const uint8_t *end)
+{
+    (void)end;
+    if (ch->f4_depth > 0) {
+        int idx = (ch->f4_depth - 1) * 2;
+        uint8_t *val = &ch->f4_params[idx];
+        (*val)--;   /* DEC BYTE [BX] — always decrements in memory */
+        if (*val == 0) {
+            (*ptr) += 2;        /* skip 2-byte word */
+            ch->f4_depth--;
+        } else {
+            /* ADD DI, [DI]: jump by signed word at current ptr, no +2 advance */
+            const uint8_t *cur = *ptr;
+            if (cur + 2 <= ch->stream_end) {
+                int16_t offset = (int16_t)((uint16_t)cur[0] | ((uint16_t)cur[1] << 8));
+                const uint8_t *tgt = cur + offset;
+                if (tgt >= ch->stream_start && tgt < ch->stream_end)
+                    *ptr = tgt;
+            }
         }
     }
 }
@@ -733,7 +785,7 @@ static void f8_loop(wm_channel_t *ch, const uint8_t **ptr, const uint8_t *end)
             ch->f4_depth--;
         } else {
             int8_t offset = (int8_t)(*(*ptr));
-            *ptr = *ptr + 1 + offset;
+            *ptr = *ptr + offset;   /* ASM: DI = jump_byte_addr + offset (no +1) */
         }
     }
 }
@@ -817,6 +869,9 @@ void wm_replayer_load(wm_replayer_t *rp, const wm_file_t *wm)
         ch->portamento_accum = 0;
         ch->portamento_target = 0;
         ch->vibrato_amp = 0;
+        ch->slide_accum  = 0;
+        ch->slide_step   = 0;
+        ch->slide_target = 0;
         ch->lfo_lo = 0; ch->lfo_hi = 0; ch->lfo_amp = 0; ch->lfo_sub_step = 0;
         ch->lfo_delay_ctr = 0; ch->lfo_period_ctr = 0;
         ch->lfo_step = 0; ch->lfo_accum = 0; ch->lfo_sub_ctr = 0;
@@ -831,6 +886,7 @@ void wm_replayer_load(wm_replayer_t *rp, const wm_file_t *wm)
     parse_instruments(rp, wm->inst_table, wm->inst_table_len);
     rp->current_tick = 0;
     rp->transpose = 0;
+    rp->wm_src = wm;
 }
 
 /* ================================================================= */
@@ -889,7 +945,6 @@ static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
     } \
     /* skip_setup (bit3): same note repeated in a tie — keep playing, no re-trigger */ \
     if (ch->flags & 0x08) { ch->flags |= 0x01; return 1; } \
-    load_instrument(rp, ch, asm_ch, ch->inst_id); \
     calc_frequency(rp, ch, asm_ch); /* sets freq_raw and key_on (bit1) */ \
     ch->flags |= 0x01; \
     return 1; \
@@ -919,7 +974,7 @@ static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
         if (cmd <= 0x8F) {
             /* 0x81-0x8F: specific commands (cmd & 0x0F for sub-dispatch) */
             switch (cmd & 0x0F) {
-            case 0x01: ch->inst_id = rd_byte(ptr, end); ch->flags &= ~0x08; break;
+            case 0x01: ch->inst_id = rd_byte(ptr, end); ch->flags &= ~0x08; load_instrument(rp, ch, asm_ch, ch->inst_id); break;
             case 0x02: /* 0x82: NOP */                                     break;
             case 0x03: ch->flags |= 0x04;                                  break; /* 0x83: set skip_ties, 0 bytes */
             case 0x04: meta_set_tempo(rp, ptr, end);                       break;
@@ -945,8 +1000,9 @@ static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
             /* 0x90-0x9F: extended commands (ASM secondary dispatch) */
             switch (cmd) {
             case 0x90: {
-                /* ASM 0xCF6: [note][target][dur] — portamento note-on.
-                   Sets slide effect (effects_flags bit0) and key_on. */
+                /* ASM 0xCF6: [note][target][dur] — portamento/slide note-on.
+                   Sets slide effect (effects_flags bit0) and key_on.
+                   Slide uses separate [si+0x24]/[si+0x26]/[si+0x28] fields. */
                 int target_word = rd_word(ptr, end);
                 uint8_t dur = rd_byte(ptr, end);
                 int note_idx   = (target_word & 0xFF) + rp->transpose;
@@ -959,15 +1015,14 @@ static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
                 ch->wait_remain  = dur;
                 ch->ties_remain  = 0;  /* ASM explicitly zeroes ties_remain for slide notes */
                 ch->freq_raw     = freq_note;
-                ch->portamento_target = (int16_t)freq_target;
+                ch->slide_target = (int16_t)freq_target;
 
                 int diff    = (int)freq_target - (int)freq_note;
                 int divisor = (int)dur < 1 ? 1 : (int)dur;
-                ch->portamento_step  = (int16_t)(diff / divisor);
-                ch->portamento_accum = 0;
+                ch->slide_step  = (int16_t)(diff / divisor);
+                ch->slide_accum = 0;
 
                 ch->effects_flags = (ch->effects_flags | 0x01) & ~0x08;
-                load_instrument(rp, ch, asm_ch, ch->inst_id);
                 ch->flags = (ch->flags & ~0x01) | 0x02;  /* clear note_on, set key_on */
                 return 1;
             }
@@ -977,7 +1032,7 @@ static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
                 ch->vibrato_amp      = (int16_t)rd_word(ptr, end); /* amplitude → [si+0x3A] */
                 portamento_init(rp, ch, asm_ch);
                 break;
-            case 0x92: ch->effects_flags |= 0x02;                   break; /* enable vibrato */
+            case 0x92: ch->effects_flags |= 0x02; break; /* enable vibrato */
             case 0x93: ch->effects_flags &= ~0x02;                  break;
             case 0x94: ch->portamento_delay = rd_byte(ptr, end);    break;
             case 0x95: rd_byte(ptr, end);                           break;
@@ -995,7 +1050,7 @@ static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
         case 0xF3: rd_byte(ptr, end); rd_word(ptr, end);     break;
         case 0xF4: f4_push(ch, ptr, end);                    break;
         case 0xF5: f5_skip(ch, ptr, end);                    break;
-        case 0xF6: rd_byte(ptr, end);                        break;
+        case 0xF6: f6_loop(ch, ptr, end);                    break;
         case 0xF7: loop_end(rp, ch, asm_ch, ptr, end);       break;
         case 0xF8: f8_loop(ch, ptr, end);                    break;
         case 0xF9: loop_write_raw(rp, ch, asm_ch, ptr, end); break;
@@ -1010,11 +1065,9 @@ static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
 int wm_replayer_tick(wm_replayer_t *rp)
 {
     int any = 0;
-    int active_count = 0;
     for (int i = 0; i < 6; i++) {
         wm_channel_t *ch = &rp->channels[i];
         int was_active = (ch->flags & 0x80) != 0;
-        if (was_active) active_count++;
 
         if ((ch->flags & 0x80)) {
             if (process_channel(rp, ch, i)) any = 1;
@@ -1025,16 +1078,16 @@ int wm_replayer_tick(wm_replayer_t *rp)
             dump_channel_state(rp, i);
     }
     rp->current_tick++;
-    if ((rp->current_tick % 3000) == 0 && active_count > 0) {
-        fprintf(stderr, "  [tick %u] active=%d any=%d\n", rp->current_tick, active_count, any);
-        for (int ci = 0; ci < 6; ci++) {
-            wm_channel_t *c = &rp->channels[ci];
-            if (c->flags & 0x80)
-                fprintf(stderr, "    ch%d: f4d=%d flags=%02x sr=%td\n",
-                    ci, c->f4_depth, c->flags,
-                    (ptrdiff_t)(c->stream_end - c->stream));
-        }
-        fflush(stderr);
+
+    /* Song looping: when all channels have gone inactive, restart.
+       Matches the original DOS player behaviour where the game driver
+       re-triggers playback after every song-end signal. */
+    if (!any && rp->wm_src) {
+        uint32_t saved_tick = rp->current_tick;
+        wm_replayer_load(rp, rp->wm_src);
+        rp->current_tick = saved_tick;   /* keep tick counter running */
+        any = 1;
     }
+
     return any;
 }
