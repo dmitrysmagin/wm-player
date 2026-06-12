@@ -31,6 +31,7 @@ typedef struct {
     uint8_t  inst_id;
     uint8_t  inst_flags;
     uint8_t  op_tl[4];
+    uint8_t  op_waveform[4]; /* shadow of E-register (waveform select) per operator */
 
     /* F1/F7 loop stack */
     uint8_t  loop_depth;

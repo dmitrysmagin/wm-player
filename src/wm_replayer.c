@@ -211,6 +211,14 @@ static void load_instrument(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch, uin
                 if (new_tl > 63) new_tl = 63;
                 val = (val & 0xC0) | (uint8_t)new_tl;
             }
+            /* grp 4 = waveform select (0xE0): the original DOS driver maintains a shadow
+               register copy and skips writes that don't change the current chip value.
+               Emulate this: skip the E write if value matches the per-channel shadow,
+               then update the shadow on every change. */
+            if (grp == 4) {
+                if (val == ch->op_waveform[op]) continue;
+                ch->op_waveform[op] = val;
+            }
             opl_tracked_write(rp, reg, val);
         }
         ch->op_tl[op] = regs[op * 5 + 1];  /* save raw TL for future apply_volume calls */
@@ -448,8 +456,13 @@ static int16_t portamento_tick(wm_channel_t *ch)
     ch->portamento_wait_ctr = ch->portamento_speed;
     ch->portamento_flip_ctr = (ch->portamento_flip_ctr + 1) & 3;
     if ((ch->portamento_flip_ctr & 1) == 0) {
+        /* ASM zero-crossing: return OLD accum so this tick re-uses the previous
+           frequency (no new write if A register is unchanged), then zero the
+           accumulator.  The next tick starts the new direction from 0, skipping
+           the zero-crossing value in the output register sequence. */
+        int16_t old_accum = ch->portamento_accum;
         ch->portamento_accum = 0;
-        return 0;
+        return old_accum;
     }
     ch->portamento_accum += ch->portamento_step + ch->portamento_step2;
     ch->portamento_step  = -ch->portamento_step;
@@ -833,12 +846,76 @@ static void null_opl_write(void *ctx, uint16_t reg, uint8_t val)
     (void)ctx; (void)reg; (void)val;
 }
 
+/* Scan a channel stream to find the first note command (byte < 0x80) and its
+   duration (the byte immediately following).  *out_dur is set to the duration.
+   Returns the note byte, or 0 if none found (out_dur set to 0).
+   Used to detect the "grace-note" pattern: when the first note has duration == 1
+   the original DOS player suppresses the OPL frequency write for that note
+   (load_instrument leaves skip_setup set and the note is consumed as a tie). */
+static uint8_t scan_first_note_dur(const uint8_t *stream, size_t len, uint8_t *out_dur)
+{
+    const uint8_t *p = stream;
+    const uint8_t *end = stream + len;
+    *out_dur = 0;
+    while (p < end) {
+        uint8_t b = *p++;
+        if (b < 0x80) {
+            if (p < end) *out_dur = *p;    /* duration byte follows note */
+            return b;                       /* note command — done */
+        }
+        if (b == 0xF0) break;              /* end-of-track */
+        if (b == 0x80) { p++; break; }    /* rest: 1-byte arg */
+        /* 0x81–0x8F: sub-dispatch, known arg counts */
+        if (b >= 0x81 && b <= 0x8F) {
+            static const uint8_t args81[16] = {
+                0,1,0,0,2,1,0,1,1,1,1,2,0,0,0,0 };
+            int sub = b & 0x0F;
+            p += args81[sub];
+            if (p > end) break;
+            continue;
+        }
+        /* 0x90–0x9F */
+        if (b >= 0x90 && b <= 0x9F) {
+            static const uint8_t args90[16] = {
+                3,4,0,0,1,1,0,0,0,0,0,0,0,0,0,0 };
+            p += args90[b & 0x0F];
+            if (p > end) break;
+            continue;
+        }
+        /* 0xA0–0xEF: NOPs */
+        if (b <= 0xEF) continue;
+        /* 0xF1–0xFF: loop/control */
+        switch (b) {
+            case 0xF1: p += 2; break;   /* signed word offset */
+            case 0xF3: p += 3; break;   /* byte + word */
+            case 0xF4: p += 1; break;   /* push count */
+            case 0xF5: p += 2; break;   /* signed word */
+            case 0xF6: p += 2; break;   /* signed word */
+            case 0xF7: p += 1; break;   /* 1-byte offset */
+            case 0xF8: p += 1; break;   /* 1-byte offset */
+            case 0xF9: p += 2; break;   /* reg + val */
+            default:   break;
+        }
+        if (p > end) break;
+    }
+    return 0;  /* no note found */
+}
+
 void wm_replayer_load(wm_replayer_t *rp, const wm_file_t *wm)
 {
     for (int i = 0; i < 6; i++) {
         wm_channel_t *ch = &rp->channels[i];
         ch->flags = 0x80;
-        ch->note = 60;
+        /* Pre-seed ch->note only for the grace-note pattern (first note dur == 1).
+           When true: load_instrument's skip_setup suppresses the spurious OPL write
+           for that one-tick pickup note, matching the original DOS player behaviour.
+           When false (dur > 1): ch->note stays 0 so the first note's frequency is
+           written normally. */
+        {
+            uint8_t first_dur = 0;
+            uint8_t first_note = scan_first_note_dur(wm->tracks[i], wm->track_lens[i], &first_dur);
+            ch->note = (first_dur == 1) ? first_note : 0;
+        }
         ch->wait_remain = 1;
         ch->ties_remain = 0;
         ch->ties_factor = 4;
@@ -850,6 +927,7 @@ void wm_replayer_load(wm_replayer_t *rp, const wm_file_t *wm)
         ch->inst_id = 0xFF;
         ch->inst_flags = 0;
         ch->op_tl[0] = 0; ch->op_tl[1] = 0; ch->op_tl[2] = 0; ch->op_tl[3] = 0;
+        ch->op_waveform[0] = 0; ch->op_waveform[1] = 0; ch->op_waveform[2] = 0; ch->op_waveform[3] = 0;
         ch->loop_depth = 0;
         memset(ch->loop_stack, 0, sizeof(ch->loop_stack));
         memset(ch->f4_params, 0, sizeof(ch->f4_params));
@@ -887,6 +965,19 @@ void wm_replayer_load(wm_replayer_t *rp, const wm_file_t *wm)
     rp->current_tick = 0;
     rp->transpose = 0;
     rp->wm_src = wm;
+
+    /* Song-start OPL3 writes: original DOS player emits these as the very
+       first register writes at t=0ms (confirmed from DRO capture).
+       B1:04 = 0x3F — enable 4-op mode for all 6 channel pairs (OPL3 NV reg)
+       B1:05 = 0x01 — OPL3 mode enable (already set by nuked-opl3, but emit
+                       to match DRO sequence exactly) */
+    opl_tracked_write(rp, 0x0104, 0x3F);
+    opl_tracked_write(rp, 0x0105, 0x01);
+
+    /* Global BD register (tremolo/vibrato depth + rhythm-mode select).
+       Original DOS player writes B0:BD=0x40 once at song start (vibrato
+       depth bit). Only ever takes this single value in the DRO capture. */
+    opl_tracked_write(rp, 0x00BD, 0x40);
 }
 
 /* ================================================================= */
@@ -943,8 +1034,10 @@ static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
             ch->ties_remain = (uint8_t)ties_; \
         } \
     } \
-    /* skip_setup (bit3): same note repeated in a tie — keep playing, no re-trigger */ \
-    if (ch->flags & 0x08) { ch->flags |= 0x01; return 1; } \
+    /* skip_setup (bit3): same note repeated in a tie — keep playing, no re-trigger.
+       ASM just RET here without modifying bit0; note_on stays as-is from previous state.
+       On initial load bit0=0 (no spurious freq write); on tie bit0=1 (note continues). */ \
+    if (ch->flags & 0x08) { return 1; } \
     calc_frequency(rp, ch, asm_ch); /* sets freq_raw and key_on (bit1) */ \
     ch->flags |= 0x01; \
     return 1; \
