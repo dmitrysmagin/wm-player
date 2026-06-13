@@ -235,7 +235,7 @@ Fidelity is measured by rendering with `--wav`, which logs every OPL3 write to
 `(bank, register)` against a reference DRO capture of the DOS player:
 
 ```sh
-./wmplay.exe --wav -t 110 ../MUSICV/AYASII.WM out.wav
+./wmplay.exe --wav -t 110 MUSICV/AYASII.WM out.wav
 python3 ../compare2.py        # reads ayasii.dro + opl_writes.log
 ```
 
