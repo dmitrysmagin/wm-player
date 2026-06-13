@@ -1,0 +1,16 @@
+0x00 char[16] signature == "OPL3 DATA       "
+
+0x10 uint16_t offset_track1 == 0x20
+0x12 uint16_t offset_track2
+0x14 uint16_t offset_track3
+0x16 uint16_t offset_track4
+0x18 uint16_t offset_track5
+0x1A uint16_t offset_track6
+0x1C uint16_t offset_insts
+0x1E uint16_t offset_eof == file_size
+
+0x20 byte[] track1_data
+.... byte[] track2_data
+....
+.... byte[] insts_data
+EOF

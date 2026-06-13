@@ -1,0 +1,16 @@
+md5 file
+
+2740041f1cc900fb5b79139572c77f0d v0_vkiss_at\CME13.M
+2740041f1cc900fb5b79139572c77f0d v2_koihime_at\SJME01.M
+
+47e9aa79abdffb0391b9147969f8f34d v0_jack_at\ME_S3.M
+47e9aa79abdffb0391b9147969f8f34d v2_nonomura_at\SE10_2.M
+
+6c209ce22223e8932372ca7d2edb4cdc v0_jack_at\ME_S7.M
+6c209ce22223e8932372ca7d2edb4cdc v2_nonomura_at\SE7_2.M
+
+9d002c6f269d4c4e71d84726df29eed6 v0_jack_at\M1_CRY2.M
+9d002c6f269d4c4e71d84726df29eed6 v0_jack_at\M1_CRY3.M
+
+ac05755696bbdd31f6accf76a20ef703 v0_jack_at\ME_S6.M
+ac05755696bbdd31f6accf76a20ef703 v3_kawara_at\SE_A.M
