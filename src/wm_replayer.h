@@ -125,8 +125,17 @@ typedef struct {
     uint8_t four_op_nv[2];      /* 0x104 and 0x105 NV register values */
     uint8_t four_op_enabled;    /* set if any NV bit is 1 */
 
-    /* song looping — pointer kept so tick can restart when all channels die */
+    /* song source — pointer kept so tick can hash the (mutable) data buffer */
     const wm_file_t *wm_src;
+
+    /* end-of-music / loop detection (ported from AdPlug src/wm.cpp).
+       The song is finished when every channel has reached end-of-track, OR
+       when the complete playback state recurs (an infinite loop point). */
+    int       song_ended;
+    uint64_t *seen_hashes;    /* open-addressing set of whole-state hashes */
+    size_t    seen_cap;       /* table capacity (power of two), 0 = unallocated */
+    size_t    seen_count;     /* number of occupied slots */
+    uint32_t  loop_tick_count;/* ticks since load; bounds pathological cases */
 } wm_replayer_t;
 
 extern int f8_iterations[6];
