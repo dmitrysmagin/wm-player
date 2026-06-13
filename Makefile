@@ -14,12 +14,13 @@ else
   BASE_CFLAGS := -std=c99 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function
 endif
 
-SDL_CONFIG  := sdl2-config
-SDL_CFLAGS  := $(shell $(SDL_CONFIG) --cflags 2>/dev/null)
-SDL_LDFLAGS := $(shell $(SDL_CONFIG) --libs 2>/dev/null)
+SDL_LIBS    := $(shell pkg-config --cflags --libs sdl2 2>/dev/null)
+ifeq ($(SDL_LIBS),)
+  SDL_LIBS  := -I/c/Users/user/msys64/ucrt64/include/SDL2 -L/c/Users/user/msys64/ucrt64/lib -lSDL2main -lSDL2
+endif
 
-ALL_CFLAGS  := $(BASE_CFLAGS) $(SDL_CFLAGS)
-ALL_LDFLAGS := $(SDL_LDFLAGS) -lm
+ALL_CFLAGS  := $(BASE_CFLAGS) $(filter -I% -D%,$(SDL_LIBS))
+ALL_LDFLAGS := $(filter -L% -l%,$(SDL_LIBS)) -lm
 
 ifeq ($(OS),Windows_NT)
   ALL_LDFLAGS += -mconsole

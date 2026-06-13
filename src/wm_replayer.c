@@ -921,7 +921,7 @@ void wm_replayer_load(wm_replayer_t *rp, const wm_file_t *wm)
         ch->ties_factor = 4;
         ch->data_word = 0;
         ch->f4_depth = 0;
-        ch->volume = 10;
+        ch->volume = 11;
         ch->expression = 7;
         ch->pan = 7;
         ch->inst_id = 0xFF;

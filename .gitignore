@@ -6,5 +6,6 @@ wmplay
 *.rsp
 *.wav
 *.log
+*.txt
 .vscode
 build
