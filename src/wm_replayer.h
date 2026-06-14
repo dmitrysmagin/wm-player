@@ -37,6 +37,9 @@ typedef struct {
     uint8_t  loop_depth;
     const uint8_t *loop_stack[8];
 
+    /* end-of-music: set when F1 takes a backward (master-loop) jump */
+    uint8_t  looped;
+
     /* stream */
     const uint8_t *stream;
     const uint8_t *stream_start;
@@ -125,17 +128,17 @@ typedef struct {
     uint8_t four_op_nv[2];      /* 0x104 and 0x105 NV register values */
     uint8_t four_op_enabled;    /* set if any NV bit is 1 */
 
-    /* song source — pointer kept so tick can hash the (mutable) data buffer */
+    /* song source — pointer kept for reference/length info */
     const wm_file_t *wm_src;
 
-    /* end-of-music / loop detection (ported from AdPlug src/wm.cpp).
-       The song is finished when every channel has reached end-of-track, OR
-       when the complete playback state recurs (an infinite loop point). */
-    int       song_ended;
-    uint64_t *seen_hashes;    /* open-addressing set of whole-state hashes */
-    size_t    seen_cap;       /* table capacity (power of two), 0 = unallocated */
-    size_t    seen_count;     /* number of occupied slots */
-    uint32_t  loop_tick_count;/* ticks since load; bounds pathological cases */
+    /* end-of-music detection (simplified, hash-free; ported from AdPlug
+       src/wm.cpp). The song is finished when either:
+         (1) every channel has reached its end-of-track (0xF0), or
+         (2) every still-active channel has taken its backward F1 loop jump
+             (its master loop point) at least once — one full pass.
+       A generous tick cap is the safety backstop. */
+    int      song_ended;
+    uint32_t loop_tick_count;
 } wm_replayer_t;
 
 extern int f8_iterations[6];

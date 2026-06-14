@@ -664,6 +664,9 @@ static void loop_start(wm_channel_t *ch, const uint8_t **ptr, const uint8_t *end
         int16_t offset = (int16_t)((uint16_t)cur[0] | ((uint16_t)cur[1] << 8));
         const uint8_t *tgt = cur + offset;
         if (tgt >= ch->stream_start && tgt < ch->stream_end) {
+            /* F1 is an unconditional jump; a backward target is the channel's
+               master loop point (its musical sequence restarts here forever). */
+            if (tgt < cur) ch->looped = 1;
             *ptr = tgt;
         }
     }
@@ -929,6 +932,7 @@ void wm_replayer_load(wm_replayer_t *rp, const wm_file_t *wm)
         ch->op_tl[0] = 0; ch->op_tl[1] = 0; ch->op_tl[2] = 0; ch->op_tl[3] = 0;
         ch->op_waveform[0] = 0; ch->op_waveform[1] = 0; ch->op_waveform[2] = 0; ch->op_waveform[3] = 0;
         ch->loop_depth = 0;
+        ch->looped = 0;
         memset(ch->loop_stack, 0, sizeof(ch->loop_stack));
         memset(ch->f4_params, 0, sizeof(ch->f4_params));
         ch->pitch_wheel = 0;
@@ -969,9 +973,6 @@ void wm_replayer_load(wm_replayer_t *rp, const wm_file_t *wm)
     /* Reset end-of-music / loop-detection state for this fresh playthrough. */
     rp->song_ended = 0;
     rp->loop_tick_count = 0;
-    rp->seen_count = 0;
-    if (rp->seen_hashes)
-        memset(rp->seen_hashes, 0, rp->seen_cap * sizeof(uint64_t));
 
     /* Song-start OPL3 writes: original DOS player emits these as the very
        first register writes at t=0ms (confirmed from DRO capture).
@@ -1162,67 +1163,10 @@ static int process_channel(wm_replayer_t *rp, wm_channel_t *ch, int asm_ch)
 }
 
 /* ----------------------------------------------------------------- */
-/* End-of-music / loop detection (ported from AdPlug src/wm.cpp).      */
-/*                                                                     */
-/* hash_state(): FNV-1a 64-bit hash of the complete playback state —   */
-/* the (mutable) data buffer, all per-channel registers and the        */
-/* relevant globals.  If a state recurs, the remainder of playback is  */
-/* fully determined, i.e. the song has entered an infinite loop.       */
+/* End-of-music detection (simplified, hash-free; ported from AdPlug   */
+/* src/wm.cpp). See wm_replayer.h for the conditions.                  */
 /* ----------------------------------------------------------------- */
 #define WM_LOOP_TICK_CAP 2000000UL
-
-static uint64_t hash_state(const wm_replayer_t *rp)
-{
-    uint64_t h = 14695981039346656037ULL;
-    const uint64_t prime = 1099511628211ULL;
-
-    if (rp->wm_src && rp->wm_src->data) {
-        const uint8_t *d = rp->wm_src->data;
-        size_t n = rp->wm_src->size;
-        for (size_t i = 0; i < n; i++) { h ^= d[i]; h *= prime; }
-    }
-    const uint8_t *cb = (const uint8_t *)rp->channels;
-    for (size_t i = 0; i < sizeof(rp->channels); i++) { h ^= cb[i]; h *= prime; }
-
-    h ^= (uint8_t)rp->transpose;        h *= prime;
-    h ^= (rp->tick_rate & 0xFF);        h *= prime;
-    h ^= ((rp->tick_rate >> 8) & 0xFF); h *= prime;
-    return h;
-}
-
-/* Open-addressing (linear-probe) set insert. Returns 1 if newly inserted,
-   0 if the hash was already present.  Hash value 0 is remapped to 1 so it
-   can double as the empty-slot sentinel (negligible collision risk). */
-static int seen_insert(wm_replayer_t *rp, uint64_t h)
-{
-    if (h == 0) h = 1;
-
-    if (rp->seen_cap == 0 || rp->seen_count * 10 >= rp->seen_cap * 7) {
-        size_t new_cap = rp->seen_cap ? rp->seen_cap * 2 : 4096;
-        uint64_t *nt = (uint64_t *)calloc(new_cap, sizeof(uint64_t));
-        if (!nt) return 1;   /* OOM: treat as new, never falsely end the song */
-        for (size_t i = 0; i < rp->seen_cap; i++) {
-            uint64_t v = rp->seen_hashes[i];
-            if (!v) continue;
-            size_t j = (size_t)(v & (new_cap - 1));
-            while (nt[j]) j = (j + 1) & (new_cap - 1);
-            nt[j] = v;
-        }
-        free(rp->seen_hashes);
-        rp->seen_hashes = nt;
-        rp->seen_cap = new_cap;
-    }
-
-    size_t mask = rp->seen_cap - 1;
-    size_t j = (size_t)(h & mask);
-    while (rp->seen_hashes[j]) {
-        if (rp->seen_hashes[j] == h) return 0;   /* already present */
-        j = (j + 1) & mask;
-    }
-    rp->seen_hashes[j] = h;
-    rp->seen_count++;
-    return 1;
-}
 
 /* ----------------------------------------------------------------- */
 int wm_replayer_tick(wm_replayer_t *rp)
@@ -1251,15 +1195,20 @@ int wm_replayer_tick(wm_replayer_t *rp)
         return 0;
     }
 
-    /* (2) WM songs typically loop forever via backward jumps. Detect the
-       loop point by spotting a repeated whole-state, so playback terminates
-       at the natural seam. A tick cap bounds any pathological case. */
-    if (rp->wm_src) {
-        if (!seen_insert(rp, hash_state(rp)) ||
-            ++rp->loop_tick_count > WM_LOOP_TICK_CAP) {
-            rp->song_ended = 1;
-            return 0;
+    /* (2) WM songs loop forever via backward jumps. Report end once every
+       still-active channel has rewound to its master loop point (F1 backward
+       jump) at least once — one full pass. A generous tick cap is the safety
+       backstop for data that loops elsewhere. */
+    int all_looped = 1;
+    for (int i = 0; i < 6; i++) {
+        if ((rp->channels[i].flags & 0x80) && !rp->channels[i].looped) {
+            all_looped = 0;
+            break;
         }
+    }
+    if (all_looped || ++rp->loop_tick_count > WM_LOOP_TICK_CAP) {
+        rp->song_ended = 1;
+        return 0;
     }
 
     return any;
